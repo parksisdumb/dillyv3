@@ -299,3 +299,15 @@ describe("streaks", () => {
     });
   });
 });
+
+describe("field capture", () => {
+  it("awards field_contact_created when a rep adds a contact from the field", async () => {
+    await inTx(async (c) => {
+      const t = await tenantId(c, "tsg");
+      const rep = await makeUser(c, t, "field@test.dev");
+      await c.query("insert into public.contact(tenant_id, first_name, source, created_by) values ($1,'Maria','field',$2)", [t, rep]);
+      const p = await one<{ n: number }>(c, "select count(*)::int as n from public.point_event where user_id=$1 and event='field_contact_created'", [rep]);
+      expect(p.n).toBe(1);
+    });
+  });
+});

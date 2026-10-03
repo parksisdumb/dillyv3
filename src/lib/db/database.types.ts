@@ -1480,11 +1480,11 @@ export type Database = {
     };
     Functions: {
       find_similar_contacts: { Args: { p_tenant: string; p_name: string; p_email: string; p_phone: string }; Returns: { id: string | null; full_name: string | null; email: string | null; phone: string | null; account_name: string | null; similarity: number | null }[] };
-      rep_queue: { Args: { p_tenant: string; p_user: string; p_day?: string }; Returns: { item_type: string | null; task_id: string | null; account_id: string | null; contact_id: string | null; opportunity_id: string | null; property_id: string | null; title: string | null; reason: string | null; due_on: string | null; overdue_days: number | null; score: number | null; account_name: string | null; contact_name: string | null; phone: string | null; email: string | null; icp_tier: number | null }[] };
       close_rep_day: { Args: { p_tenant: string; p_day: string }; Returns: number };
-      leaderboard: { Args: { p_tenant: string; p_since: string }; Returns: { user_id: string | null; full_name: string | null; role: string | null; points: number | null; touches: number | null; connects: number | null; in_person: number | null }[] };
-      claim_invites: { Args: {  }; Returns: number };
       rep_streak: { Args: { p_tenant: string; p_user: string }; Returns: number };
+      rep_queue: { Args: { p_tenant: string; p_user: string; p_day?: string }; Returns: { item_type: string | null; task_id: string | null; account_id: string | null; contact_id: string | null; opportunity_id: string | null; property_id: string | null; title: string | null; reason: string | null; due_on: string | null; overdue_days: number | null; score: number | null; account_name: string | null; contact_name: string | null; phone: string | null; email: string | null; icp_tier: number | null }[] };
+      claim_invites: { Args: {  }; Returns: number };
+      leaderboard: { Args: { p_tenant: string; p_since: string }; Returns: { user_id: string | null; full_name: string | null; role: string | null; points: number | null; touches: number | null; connects: number | null; in_person: number | null }[] };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

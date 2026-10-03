@@ -1,0 +1,282 @@
+"use client";
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { loadLogContext, logTouch } from "@/lib/actions/log";
+import type { ContactOption, LogContextData, LogTarget } from "@/lib/actions/log-types";
+import { CHANNELS, OUTCOMES, PERSONA_ROLES, PRIMARY_CHANNELS, QUICK_OUTCOMES, type Channel, type Outcome, type PersonaRole } from "@/lib/domain/vocab";
+import { previewPoints } from "@/lib/domain/points";
+import { Sheet } from "@/components/ui/sheet";
+import { useToast } from "@/components/ui/toast";
+import { btn, cn, input, labelText } from "@/components/ui/styles";
+import { ContactPicker } from "@/components/log/contact-picker";
+import { IconBuilding, IconChevronDown, IconUser } from "@/components/icons";
+
+const MORE_CHANNELS = (Object.keys(CHANNELS) as Channel[]).filter((c) => !PRIMARY_CHANNELS.includes(c));
+
+/**
+ * The 3-tap log: (1) contact, pre-selected from context  (2) channel  (3) outcome — the outcome tap logs.
+ * Details (notes, who I met, follow-up date, skip, property/opportunity) are optional and collapsed.
+ */
+export function LogSheet({ open, target, onClose }: { open: boolean; target: LogTarget; onClose: () => void }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [data, setData] = useState<LogContextData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [contact, setContact] = useState<ContactOption | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [channel, setChannel] = useState<Channel | null>(null);
+  const [moreChannels, setMoreChannels] = useState(false);
+  const [details, setDetails] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [metRole, setMetRole] = useState<PersonaRole | "">("");
+  const [followUpOn, setFollowUpOn] = useState("");
+  const [skip, setSkip] = useState(false);
+  const [propertyId, setPropertyId] = useState(target.propertyId ?? "");
+  const [opportunityId, setOpportunityId] = useState(target.opportunityId ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+
+  const load = (t: LogTarget, preferContact?: ContactOption | null) =>
+    loadLogContext(t)
+      .then((d) => {
+        setData(d);
+        setLoadError(null);
+        const c = preferContact ?? d.contact ?? (t.contactId ? null : d.contacts[0] ?? null);
+        setContact(c);
+        setPicking(!d.account && !c);
+      })
+      .catch(() => setLoadError("Couldn't load. Check signal and try again."));
+
+  useEffect(() => {
+    if (!open) return;
+    void load(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per open (the provider remounts with a new key)
+  }, [open]);
+
+  const account = data?.account ?? null;
+  const canLog = !!(contact || account);
+
+  const pickContact = (c: ContactOption | null, accountId?: string | null) => {
+    setPicking(false);
+    setError(null);
+    const current = account?.id ?? null;
+    const reload = c ? (c.account_id ?? null) !== current : !!accountId && accountId !== current;
+    if (reload) {
+      // Different account (or a person with no account): reload buildings/opportunities for the new context.
+      setData(null);
+      setPropertyId("");
+      setOpportunityId("");
+      void load(c ? { contactId: c.id } : { accountId }, c);
+    } else {
+      setContact(c);
+    }
+  };
+
+  const submit = (outcome: Outcome) => {
+    if (!channel || !canLog) return;
+    setError(null);
+    start(async () => {
+      const r = await logTouch({
+        accountId: account?.id ?? null,
+        contactId: contact?.id ?? null,
+        propertyId: propertyId || null,
+        opportunityId: opportunityId || null,
+        channel,
+        outcome,
+        notes: notes || null,
+        metRole: metRole || null,
+        followUpOn: followUpOn || null,
+        skipFollowUp: skip,
+      });
+      if (!r.ok) {
+        setError(r.error);
+        return;
+      }
+      toast(r.toast);
+      onClose();
+      router.refresh();
+    });
+  };
+
+  const title = account ? account.name : "Log a touch";
+
+  return (
+    <Sheet open={open} onClose={onClose} title={<span className="block truncate">{title}</span>} labelledBy="log-sheet-title">
+      {loadError && <p className="m-4 rounded-lg border-2 border-danger px-3 py-2 text-sm text-danger">{loadError}</p>}
+      {!data && !loadError && <p className="label p-6 text-center text-sm text-muted">Loading…</p>}
+
+      {data && (
+        <div className="flex flex-col gap-5 px-4 pt-4">
+          {/* Step 1 — who */}
+          <section aria-label="Who">
+            <div className={cn(labelText, "mb-2")}>1 · Who</div>
+            {picking ? (
+              <ContactPicker
+                accountId={account?.id ?? null}
+                contacts={data.contacts}
+                allowAccountLevel={!!account}
+                onPick={pickContact}
+                onCancel={contact || account ? () => setPicking(false) : undefined}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setPicking(true)}
+                className="flex min-h-14 w-full items-center gap-3 rounded-lg border-2 border-ink bg-surface px-3 text-left"
+              >
+                {contact ? <IconUser size={20} /> : <IconBuilding size={20} />}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold">{contact ? contact.name : `${account?.name ?? "Account"} (no contact)`}</div>
+                  <div className="truncate text-sm text-muted">
+                    {contact
+                      ? [contact.title, PERSONA_ROLES[contact.persona_role as PersonaRole]].filter((x) => x && x !== "Unknown").join(" · ") || "Contact"
+                      : "Logging on the account"}
+                  </div>
+                </div>
+                <span className="label text-xs text-accent">Change</span>
+              </button>
+            )}
+          </section>
+
+          {/* Step 2 — how */}
+          {!picking && canLog && (
+            <section aria-label="How">
+              <div className={cn(labelText, "mb-2")}>2 · How</div>
+              <div className="grid grid-cols-2 gap-2">
+                {[...PRIMARY_CHANNELS, ...(moreChannels ? MORE_CHANNELS : [])].map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-pressed={channel === c}
+                    onClick={() => setChannel(c)}
+                    className={cn(
+                      "min-h-14 rounded-lg border-2 px-3 text-left font-display text-base font-semibold",
+                      channel === c ? "border-ink bg-ink text-ground" : "border-line bg-surface text-ink hover:border-ink",
+                    )}
+                  >
+                    {CHANNELS[c].label}
+                    {CHANNELS[c].inPerson && <span className={cn("label ml-1 text-xs", channel === c ? "text-ground/70" : "text-muted")}>· in person</span>}
+                  </button>
+                ))}
+              </div>
+              {!moreChannels && (
+                <button type="button" onClick={() => setMoreChannels(true)} className={btn("ghost", "sm", "mt-1 w-full text-muted")}>
+                  More ways
+                </button>
+              )}
+            </section>
+          )}
+
+          {/* Optional details */}
+          {!picking && canLog && channel && (
+            <section>
+              <button
+                type="button"
+                aria-expanded={details}
+                onClick={() => setDetails((d) => !d)}
+                className="flex min-h-12 w-full items-center gap-2 text-left text-sm text-muted"
+              >
+                <IconChevronDown size={18} className={cn("motion-safe:transition-transform", details && "rotate-180")} />
+                <span className="label">Notes, who I met, follow-up</span>
+                {(notes || metRole || followUpOn || skip || propertyId || opportunityId) && <span className="size-2 rounded-full bg-accent" aria-label="details set" />}
+              </button>
+              {details && (
+                <div className="flex flex-col gap-3 pb-1">
+                  <label className="flex flex-col gap-1.5">
+                    <span className={labelText}>Notes</span>
+                    <textarea className={cn(input, "py-2")} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Roof out of warranty, leaks in bldg 3" />
+                  </label>
+                  <label className="flex flex-col gap-1.5">
+                    <span className={labelText}>Who I met</span>
+                    <select className={input} value={metRole} onChange={(e) => setMetRole(e.target.value as PersonaRole | "")}>
+                      <option value="">—</option>
+                      {Object.entries(PERSONA_ROLES).map(([k, v]) => (
+                        <option key={k} value={k}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="flex flex-col gap-1.5">
+                      <span className={labelText}>Follow up on</span>
+                      <input className={input} type="date" value={followUpOn} min={data.today} disabled={skip} onChange={(e) => setFollowUpOn(e.target.value)} />
+                    </label>
+                    <label className="flex min-h-12 items-center gap-2 self-end">
+                      <input type="checkbox" className="size-6 accent-[var(--accent)]" checked={skip} onChange={(e) => setSkip(e.target.checked)} />
+                      <span className="text-sm">No follow-up</span>
+                    </label>
+                  </div>
+                  {data.properties.length > 0 && (
+                    <label className="flex flex-col gap-1.5">
+                      <span className={labelText}>Property</span>
+                      <select className={input} value={propertyId} onChange={(e) => setPropertyId(e.target.value)}>
+                        <option value="">—</option>
+                        {data.properties.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {data.opportunities.length > 0 && (
+                    <label className="flex flex-col gap-1.5">
+                      <span className={labelText}>Opportunity</span>
+                      <select className={input} value={opportunityId} onChange={(e) => setOpportunityId(e.target.value)}>
+                        <option value="">—</option>
+                        {data.opportunities.map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {o.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* Step 3 — what happened (tap logs) */}
+          {!picking && canLog && channel && (
+            <section aria-label="What happened">
+              <div className={cn(labelText, "mb-2")}>3 · What happened — tap to log</div>
+              <div className="grid grid-cols-2 gap-2">
+                {QUICK_OUTCOMES[channel].map((o) => {
+                  const pts = previewPoints(channel, o, metRole || null, data.points);
+                  const tone = OUTCOMES[o].tone;
+                  return (
+                    <button
+                      key={o}
+                      type="button"
+                      disabled={pending}
+                      onClick={() => submit(o)}
+                      className={cn(
+                        "flex min-h-16 flex-col items-start justify-center rounded-lg border-2 px-3 py-2 text-left disabled:opacity-50",
+                        tone === "great" && "border-accent bg-accent text-accent-ink",
+                        tone === "good" && "border-ink bg-surface text-ink",
+                        tone === "neutral" && "border-line bg-surface text-ink",
+                        tone === "bad" && "border-line bg-surface text-danger",
+                      )}
+                    >
+                      <span className="font-display text-base font-bold leading-tight">{OUTCOMES[o].label}</span>
+                      <span className={cn("num label text-xs", tone === "great" ? "text-accent-ink/80" : "text-muted")}>+{pts}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
+          {error && (
+            <p role="alert" className="rounded-lg border-2 border-danger px-3 py-2 text-sm text-danger">
+              {error}
+            </p>
+          )}
+          {pending && <p className="label text-center text-sm text-muted">Logging…</p>}
+        </div>
+      )}
+    </Sheet>
+  );
+}

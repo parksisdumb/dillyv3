@@ -1,26 +1,131 @@
 @import "tailwindcss";
 
+/*
+ * Dilly — field tool palette. Membrane white ground, ink text, safety-orange actions.
+ * Tokens are CSS variables so the dark theme is one swap; Tailwind utilities read them via @theme inline.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --ground: #f5f6f3;
+  --surface: #ffffff;
+  --surface-2: #eceee9;
+  --ink: #15202b;
+  --muted: #5b6670;
+  --line: #d9ddd8;
+  --accent: #e4570f;
+  --accent-ink: #ffffff;
+  --success: #1e8a57;
+  --warning: #c98a00;
+  --danger: #c2362b;
+  --focus: #1f6feb;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --ground: #0f151b;
+    --surface: #172029;
+    --surface-2: #1d2833;
+    --ink: #e8ecef;
+    --muted: #95a1ab;
+    --line: #26313b;
+    --accent: #ff6a1f;
+    --accent-ink: #ffffff;
+    --success: #34b277;
+    --warning: #e0a91f;
+    --danger: #e5574b;
+    --focus: #6aa7ff;
+    color-scheme: dark;
   }
 }
 
+@theme inline {
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-focus: var(--focus);
+
+  --font-sans: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
+  --font-label: var(--font-barlow-semi), var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
+
+  /* Strict type scale: 12 / 14 / 16 / 20 / 28 / 40 */
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.6rem;
+  --text-2xl: 1.75rem;
+  --text-2xl--line-height: 2.1rem;
+  --text-4xl: 2.5rem;
+  --text-4xl--line-height: 2.75rem;
+}
+
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--ground);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+  text-rendering: optimizeLegibility;
+}
+
+/* Labels, chips and nav: semi-condensed caps. */
+.label {
+  font-family: var(--font-label);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+dialog::backdrop {
+  background: rgb(10 14 18 / 0.55);
+}
+
+dialog[open] {
+  animation: sheet-in 160ms ease-out;
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(24px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
