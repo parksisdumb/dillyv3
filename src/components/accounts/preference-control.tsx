@@ -32,7 +32,7 @@ export function PreferenceControl({ accountId, preference, reason }: { accountId
             </label>
           ))}
         </div>
-        <label className={cn("mt-2 flex min-h-10 items-center gap-2 text-sm", sel === "none" ? "text-ink" : "text-muted")}>
+        <label className={cn("mt-2 flex min-h-12 items-center gap-2 text-sm", sel === "none" ? "text-ink" : "text-muted")}>
           <input type="radio" name="preference" value="none" checked={sel === "none"} onChange={() => setSel("none")} className="size-5" />
           No preference (rank normally)
         </label>

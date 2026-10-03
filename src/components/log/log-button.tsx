@@ -16,7 +16,7 @@ export function LogButton({
   ariaLabel?: string;
   target: LogTarget;
   label?: string;
-  variant?: "primary" | "secondary" | "ghost";
+  variant?: "primary" | "accent-outline" | "secondary" | "ghost";
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
@@ -31,7 +31,8 @@ export function LogButton({
 
 /** The always-there orange Log button above the bottom nav. */
 export function FloatingLogButton() {
-  const { openLog } = useLog();
+  const { openLog, fabHidden } = useLog();
+  if (fabHidden) return null;
   return (
     <button
       type="button"

@@ -52,7 +52,8 @@ export function Sheet({
       {open && (
         <div className="flex max-h-[92dvh] flex-col">
           <div className="flex min-h-14 items-center gap-2 border-b border-line px-4">
-            <div className="min-w-0 flex-1 font-display text-xl font-bold" id={labelledBy}>
+            {/* autoFocus here so showModal() doesn't land on (and ring) the close button */}
+            <div className="min-w-0 flex-1 font-display text-xl font-bold focus:outline-none" id={labelledBy} tabIndex={-1} autoFocus>
               {title}
             </div>
             <button type="button" onClick={onClose} className="-mr-2 inline-flex size-12 items-center justify-center rounded-lg hover:bg-surface-2" aria-label="Close">

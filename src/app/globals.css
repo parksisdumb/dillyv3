@@ -17,6 +17,8 @@
   --warning: #c98a00;
   --danger: #c2362b;
   --focus: #1f6feb;
+  --strong: #15202b;
+  --strong-ink: #f5f6f3;
   color-scheme: light;
 }
 
@@ -34,6 +36,8 @@
     --warning: #e0a91f;
     --danger: #e5574b;
     --focus: #6aa7ff;
+    --strong: #24323f;
+    --strong-ink: #e8ecef;
     color-scheme: dark;
   }
 }
@@ -51,6 +55,8 @@
   --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-focus: var(--focus);
+  --color-strong: var(--strong);
+  --color-strong-ink: var(--strong-ink);
 
   --font-sans: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
@@ -95,9 +101,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
+/* In the base layer so utilities (e.g. focus:outline-none on a programmatically focused heading) can override. */
+@layer base {
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
 }
 
 dialog::backdrop {

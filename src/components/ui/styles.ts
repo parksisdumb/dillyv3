@@ -2,7 +2,7 @@ import clsx from "clsx";
 
 export { clsx as cn };
 
-type Variant = "primary" | "secondary" | "ghost" | "danger" | "success";
+type Variant = "primary" | "accent-outline" | "secondary" | "ghost" | "danger" | "success";
 type Size = "md" | "lg" | "sm";
 
 const base =
@@ -10,6 +10,7 @@ const base =
 
 const variants: Record<Variant, string> = {
   primary: "bg-accent text-accent-ink hover:brightness-110 active:brightness-95",
+  "accent-outline": "bg-surface text-accent border-2 border-accent hover:bg-accent hover:text-accent-ink",
   secondary: "bg-surface text-ink border-2 border-line hover:border-ink",
   ghost: "text-ink hover:bg-surface-2",
   danger: "bg-surface text-danger border-2 border-danger hover:bg-danger hover:text-white",
@@ -17,7 +18,7 @@ const variants: Record<Variant, string> = {
 };
 
 const sizes: Record<Size, string> = {
-  sm: "min-h-10 px-3 text-sm",
+  sm: "min-h-12 px-3 text-sm",
   md: "min-h-12 px-4 text-base",
   lg: "min-h-14 px-5 text-xl",
 };

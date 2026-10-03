@@ -8,6 +8,7 @@ import { TierPill } from "@/components/ui/bits";
 import { useToast } from "@/components/ui/toast";
 import { btn, cn, input } from "@/components/ui/styles";
 import { IconPhone, IconSkip } from "@/components/icons";
+import { HideLogFab } from "@/components/log/log-provider";
 import type { FocusItem } from "@/components/go/types";
 
 /** Dial queue: one contact at a time, outcome buttons with their point values, running tally. */
@@ -69,7 +70,8 @@ export function FocusSession({ items: initial, points }: { items: FocusItem[]; p
 
   return (
     <div className="px-4">
-      <div className="grid grid-cols-3 rounded-lg bg-ink px-4 py-3 text-ground">
+      <HideLogFab />
+      <div className="grid grid-cols-3 rounded-lg bg-strong px-4 py-2 text-strong-ink">
         {[
           ["Points", `+${tally.points}`],
           ["Dials", tally.calls],
@@ -130,12 +132,12 @@ export function FocusSession({ items: initial, points }: { items: FocusItem[]; p
                   disabled={pending}
                   onClick={() => log(o)}
                   className={cn(
-                    "flex min-h-16 items-center justify-between gap-2 rounded-lg border-2 px-3 text-left disabled:opacity-50",
+                    "flex min-h-16 flex-col items-start justify-center rounded-lg border-2 px-3 py-2 text-left disabled:opacity-50",
                     tone === "great" ? "border-accent bg-accent text-accent-ink" : tone === "bad" ? "border-line bg-surface text-danger" : "border-ink bg-surface",
                   )}
                 >
                   <span className="font-display text-base font-bold leading-tight">{OUTCOMES[o].label}</span>
-                  <span className={cn("num font-display text-xl font-extrabold", tone === "great" ? "" : "text-accent")}>+{previewPoints("call", o, null, points)}</span>
+                  <span className={cn("num font-display text-base font-extrabold", tone === "great" ? "" : "text-accent")}>+{previewPoints("call", o, null, points)}</span>
                 </button>
               );
             })}

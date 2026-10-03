@@ -18,7 +18,7 @@ export function TeamCard({
   children?: React.ReactNode;
 }) {
   return (
-    <section className="rounded-lg border-2 border-line bg-surface">
+    <section className="min-w-0 rounded-lg border-2 border-line bg-surface">
       <Link href={href} className="flex items-start gap-3 px-4 pb-2 pt-3 hover:bg-surface-2">
         <div className="min-w-0 flex-1">
           <h2 className="label text-xs text-muted">{title}</h2>

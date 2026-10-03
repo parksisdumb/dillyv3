@@ -21,10 +21,17 @@ export function OppCard({ o, today, compact = false }: { o: OppCardData; today: 
       href={`/app/pipeline/${o.id}`}
       className={cn("block hover:bg-surface-2", compact ? "rounded-lg border-2 border-line bg-surface p-3" : "px-4 py-3", o.stalled && compact && "border-warning")}
     >
-      <div className="flex items-baseline gap-2">
-        <span className="min-w-0 flex-1 truncate font-semibold">{o.name}</span>
-        <span className="num font-display font-bold">{money(o.value)}</span>
-      </div>
+      {compact ? (
+        <>
+          <div className="num font-display text-xl font-bold leading-tight">{money(o.value)}</div>
+          <div className="line-clamp-2 font-semibold leading-snug">{o.name}</div>
+        </>
+      ) : (
+        <div className="flex items-baseline gap-2">
+          <span className="min-w-0 flex-1 truncate font-semibold">{o.name}</span>
+          <span className="num font-display font-bold">{money(o.value)}</span>
+        </div>
+      )}
       {o.account && <div className="truncate text-sm text-muted">{o.account}</div>}
       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
         <span className="num text-muted">{o.daysInStage}d in stage</span>

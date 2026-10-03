@@ -9,6 +9,7 @@ import { TierPill } from "@/components/ui/bits";
 import { useToast } from "@/components/ui/toast";
 import { btn, cn, input, labelText } from "@/components/ui/styles";
 import { IconCheck, IconDirections, IconList, IconPlus, IconSkip } from "@/components/icons";
+import { HideLogFab } from "@/components/log/log-provider";
 import type { Stop, StopContact } from "@/components/go/types";
 
 const FIELD_CHANNELS: Channel[] = ["site_visit", "door_knock", "roof_walk", "meeting"];
@@ -22,6 +23,8 @@ export function FieldSession({ stops: initial, points }: { stops: Stop[]; points
   const [tally, setTally] = useState({ points: 0, stops: 0 });
   const [channel, setChannel] = useState<Channel>("site_visit");
   const [notes, setNotes] = useState("");
+  const [notesFocused, setNotesFocused] = useState(false);
+  const [moreOutcomes, setMoreOutcomes] = useState(false);
   const [met, setMet] = useState<StopContact | null>(null);
   const [added, setAdded] = useState<Record<string, StopContact[]>>({});
   const [adding, setAdding] = useState(false);
@@ -90,20 +93,16 @@ export function FieldSession({ stops: initial, points }: { stops: Stop[]; points
 
   return (
     <div className="px-4">
+      <HideLogFab />
       {/* Tally */}
-      <div className="flex items-center justify-between rounded-lg bg-ink px-4 py-3 text-ground">
-        <div>
-          <div className="label text-xs opacity-70">This session</div>
-          <div className="num font-display text-2xl font-extrabold leading-tight">+{tally.points}</div>
-        </div>
-        <div className="num text-right text-sm">
-          <div>
-            {tally.stops} logged · {remaining} to go
-          </div>
-          <button type="button" onClick={() => setList((l) => !l)} className="label mt-1 inline-flex min-h-10 items-center gap-1 text-xs underline-offset-2 hover:underline">
-            <IconList size={16} /> {list ? "Back to stop" : `All ${stops.length} stops`}
-          </button>
-        </div>
+      <div className="flex min-h-14 items-center gap-3 rounded-lg bg-strong pl-4 pr-2 text-strong-ink">
+        <span className="num font-display text-2xl font-extrabold">+{tally.points}</span>
+        <span className="num min-w-0 flex-1 truncate text-sm opacity-80">
+          {tally.stops} logged · {remaining} to go
+        </span>
+        <button type="button" onClick={() => setList((l) => !l)} className="label inline-flex min-h-12 shrink-0 items-center gap-1 px-2 text-xs hover:underline">
+          <IconList size={16} /> {list ? "Back to stop" : `All ${stops.length}`}
+        </button>
       </div>
 
       {list ? (
@@ -216,32 +215,55 @@ export function FieldSession({ stops: initial, points }: { stops: Stop[]; points
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
+              onFocus={() => setNotesFocused(true)}
+              onBlur={() => setTimeout(() => setNotesFocused(false), 200)}
               placeholder="Chief engineer is Dave, back Thu. 2009 TPO, ponding west side."
             />
           </label>
 
-          {/* Dispositions */}
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            {QUICK_OUTCOMES[channel].map((o) => {
-              const tone = OUTCOMES[o].tone;
-              return (
-                <button
-                  key={o}
-                  type="button"
-                  disabled={pending}
-                  onClick={() => disposition(o)}
-                  className={cn(
-                    "flex min-h-16 flex-col items-start justify-center rounded-lg border-2 px-3 text-left disabled:opacity-50",
-                    tone === "great" ? "border-accent bg-accent text-accent-ink" : tone === "bad" ? "border-line bg-surface text-danger" : "border-ink bg-surface",
-                  )}
-                >
-                  <span className="font-display text-base font-bold leading-tight">{OUTCOMES[o].label}</span>
-                  <span className={cn("num label text-xs", tone === "great" ? "opacity-80" : "text-muted")}>
-                    +{previewPoints(channel, o, met && met.role !== "unknown" ? (met.role as PersonaRole) : null, points)}
-                  </span>
-                </button>
-              );
-            })}
+          {/* Dispositions: sticky tray above the bottom nav so the decision is always one thumb away.
+              Drops back into normal flow while Notes is focused so it never covers the field under the keyboard. */}
+          <div
+            className={cn(
+              "z-10 -mx-4 mt-4 border-t border-line bg-ground px-4 pb-2 pt-2",
+              !notesFocused && "sticky bottom-[calc(env(safe-area-inset-bottom)+64px)]",
+            )}
+            role="group"
+            aria-label="What happened"
+          >
+            <div className="label mb-1.5 flex items-center justify-between text-xs text-muted">
+              <span>
+                What happened · {CHANNELS[channel].label}
+                {met && <> · {met.name}</>}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {(moreOutcomes ? QUICK_OUTCOMES[channel] : QUICK_OUTCOMES[channel].slice(0, 4)).map((o) => {
+                const tone = OUTCOMES[o].tone;
+                return (
+                  <button
+                    key={o}
+                    type="button"
+                    disabled={pending}
+                    onClick={() => disposition(o)}
+                    className={cn(
+                      "flex min-h-14 flex-col items-start justify-center rounded-lg border-2 px-3 text-left disabled:opacity-50",
+                      tone === "great" ? "border-accent bg-accent text-accent-ink" : tone === "bad" ? "border-line bg-surface text-danger" : "border-ink bg-surface",
+                    )}
+                  >
+                    <span className="font-display text-base font-bold leading-tight">{OUTCOMES[o].label}</span>
+                    <span className={cn("num label text-xs", tone === "great" ? "opacity-80" : "text-muted")}>
+                      +{previewPoints(channel, o, met && met.role !== "unknown" ? (met.role as PersonaRole) : null, points)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            {QUICK_OUTCOMES[channel].length > 4 && (
+              <button type="button" onClick={() => setMoreOutcomes((m) => !m)} className={btn("ghost", "sm", "mt-1 w-full text-muted")} aria-expanded={moreOutcomes}>
+                {moreOutcomes ? "Fewer" : `More (${QUICK_OUTCOMES[channel].length - 4})`}
+              </button>
+            )}
           </div>
           {error && (
             <p role="alert" className="mt-3 rounded-lg border-2 border-danger px-3 py-2 text-sm text-danger">

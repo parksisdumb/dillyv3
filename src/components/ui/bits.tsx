@@ -51,7 +51,7 @@ export function StateChip({ state }: { state: string | null | undefined }) {
 
 export function SectionTitle({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="flex items-end justify-between gap-2 px-4 pb-2 pt-6">
+    <div className="flex min-h-12 items-center justify-between gap-2 px-4 pt-4">
       <h2 className="label text-sm text-muted">{children}</h2>
       {action}
     </div>

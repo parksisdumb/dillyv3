@@ -17,14 +17,25 @@ const MORE_CHANNELS = (Object.keys(CHANNELS) as Channel[]).filter((c) => !PRIMAR
  * The 3-tap log: (1) contact, pre-selected from context  (2) channel  (3) outcome — the outcome tap logs.
  * Details (notes, who I met, follow-up date, skip, property/opportunity) are optional and collapsed.
  */
-export function LogSheet({ open, target, onClose }: { open: boolean; target: LogTarget; onClose: () => void }) {
+export function LogSheet({
+  open,
+  target,
+  onClose,
+  initial,
+}: {
+  open: boolean;
+  target: LogTarget;
+  onClose: () => void;
+  /** Pre-loaded state (dev preview): skips the server load and opens at a given step. */
+  initial?: { data: LogContextData; contact: ContactOption | null; picking?: boolean; channel?: Channel | null };
+}) {
   const router = useRouter();
   const { toast } = useToast();
-  const [data, setData] = useState<LogContextData | null>(null);
+  const [data, setData] = useState<LogContextData | null>(initial?.data ?? null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [contact, setContact] = useState<ContactOption | null>(null);
-  const [picking, setPicking] = useState(false);
-  const [channel, setChannel] = useState<Channel | null>(null);
+  const [contact, setContact] = useState<ContactOption | null>(initial?.contact ?? null);
+  const [picking, setPicking] = useState(initial?.picking ?? false);
+  const [channel, setChannel] = useState<Channel | null>(initial?.channel ?? null);
   const [moreChannels, setMoreChannels] = useState(false);
   const [details, setDetails] = useState(false);
   const [notes, setNotes] = useState("");
@@ -48,7 +59,7 @@ export function LogSheet({ open, target, onClose }: { open: boolean; target: Log
       .catch(() => setLoadError("Couldn't load. Check signal and try again."));
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || initial) return;
     void load(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per open (the provider remounts with a new key)
   }, [open]);
@@ -142,27 +153,40 @@ export function LogSheet({ open, target, onClose }: { open: boolean; target: Log
           {!picking && canLog && (
             <section aria-label="How">
               <div className={cn(labelText, "mb-2")}>2 · How</div>
-              <div className="grid grid-cols-2 gap-2">
-                {[...PRIMARY_CHANNELS, ...(moreChannels ? MORE_CHANNELS : [])].map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    aria-pressed={channel === c}
-                    onClick={() => setChannel(c)}
-                    className={cn(
-                      "min-h-14 rounded-lg border-2 px-3 text-left font-display text-base font-semibold",
-                      channel === c ? "border-ink bg-ink text-ground" : "border-line bg-surface text-ink hover:border-ink",
-                    )}
-                  >
-                    {CHANNELS[c].label}
-                    {CHANNELS[c].inPerson && <span className={cn("label ml-1 text-xs", channel === c ? "text-ground/70" : "text-muted")}>· in person</span>}
-                  </button>
-                ))}
-              </div>
-              {!moreChannels && (
-                <button type="button" onClick={() => setMoreChannels(true)} className={btn("ghost", "sm", "mt-1 w-full text-muted")}>
-                  More ways
+              {channel ? (
+                <button
+                  type="button"
+                  onClick={() => setChannel(null)}
+                  className="flex min-h-14 w-full items-center gap-3 rounded-lg border-2 border-ink bg-ink px-3 text-left text-ground"
+                  aria-label={`${CHANNELS[channel].label} — change`}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-display text-base font-semibold">{CHANNELS[channel].label}</span>
+                    {CHANNELS[channel].inPerson && <span className="label block text-xs text-ground/70">In person</span>}
+                  </span>
+                  <span className="label text-xs text-accent">Change</span>
                 </button>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[...PRIMARY_CHANNELS, ...(moreChannels ? MORE_CHANNELS : [])].map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setChannel(c)}
+                        className="flex min-h-14 flex-col items-start justify-center rounded-lg border-2 border-line bg-surface px-3 text-left text-ink hover:border-ink"
+                      >
+                        <span className="font-display text-base font-semibold leading-tight">{CHANNELS[c].label}</span>
+                        {CHANNELS[c].inPerson && <span className="label text-xs text-muted">In person</span>}
+                      </button>
+                    ))}
+                  </div>
+                  {!moreChannels && (
+                    <button type="button" onClick={() => setMoreChannels(true)} className={btn("ghost", "sm", "mt-1 w-full text-muted")}>
+                      More ways
+                    </button>
+                  )}
+                </>
               )}
             </section>
           )}

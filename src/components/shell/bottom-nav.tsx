@@ -4,8 +4,9 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/components/ui/styles";
 import { IconAccounts, IconGo, IconPipeline, IconTeam, IconToday, IconUser } from "@/components/icons";
 
-export function BottomNav({ isManager }: { isManager: boolean }) {
-  const path = usePathname();
+export function BottomNav({ isManager, activeHref }: { isManager: boolean; activeHref?: string }) {
+  const pathname = usePathname();
+  const path = activeHref ?? pathname;
   const tabs = [
     { href: "/app/today", label: "Today", Icon: IconToday },
     { href: "/app/go", label: "Go", Icon: IconGo },

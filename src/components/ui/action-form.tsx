@@ -20,7 +20,9 @@ export function ActionForm({
   onSuccess,
   stickySubmit = false,
   confirm,
+  submitSize = "lg",
 }: {
+  submitSize?: "md" | "lg";
   action: Action;
   children: React.ReactNode;
   submitLabel?: string;
@@ -60,7 +62,7 @@ export function ActionForm({
         </p>
       )}
       <div className={cn(stickySubmit && "sticky bottom-0 -mx-4 border-t border-line bg-ground/95 px-4 py-3 backdrop-blur")}>
-        <button type="submit" disabled={pending} className={btn(submitVariant, "lg", "w-full")}>
+        <button type="submit" disabled={pending} className={btn(submitVariant, submitSize, "w-full")}>
           {pending ? "Saving…" : submitLabel}
         </button>
       </div>

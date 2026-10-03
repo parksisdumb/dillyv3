@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { ctx } from "@/lib/server/ctx";
 import { mergePointRules } from "@/lib/domain/points";
 import { mapsUrl, quietLabel } from "@/lib/format";
-import { PageHeader } from "@/components/ui/bits";
-import { cn } from "@/components/ui/styles";
+import { CityChips, GoHeader } from "@/components/go/go-chrome";
 import { FieldSession } from "@/components/go/field-session";
 import { FocusSession } from "@/components/go/focus-session";
 import type { FocusItem, Stop } from "@/components/go/types";
@@ -125,46 +123,8 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
   return (
     <div>
       <GoHeader mode={mode} />
-      {cities.length > 1 && (
-        <div className="flex gap-2 overflow-x-auto px-4 pb-2" role="group" aria-label="Area">
-          {cities.map((c) => (
-            <Link
-              key={c.city}
-              href={`/app/go?city=${encodeURIComponent(c.city)}`}
-              aria-current={c.city === city ? "true" : undefined}
-              className={cn(
-                "label inline-flex min-h-10 shrink-0 items-center gap-1 rounded-full border-2 px-4 text-sm",
-                c.city === city ? "border-ink bg-ink text-ground" : "border-line",
-              )}
-            >
-              {c.city}
-              <span className="num opacity-70">{c.total}</span>
-            </Link>
-          ))}
-        </div>
-      )}
+      <CityChips cities={cities} city={city} />
       <FieldSession key={city ?? "none"} stops={todays} points={points} />
     </div>
-  );
-}
-
-function GoHeader({ mode }: { mode: "field" | "focus" }) {
-  return (
-    <>
-      <PageHeader title={mode === "field" ? "Field session" : "Focus session"} sub={mode === "field" ? "One stop at a time. Tap what happened." : "One call at a time. Tap what happened."} />
-      <div className="mx-4 mb-3 grid grid-cols-2 gap-1 rounded-lg bg-surface-2 p-1" role="tablist" aria-label="Session type">
-        {(["field", "focus"] as const).map((m) => (
-          <Link
-            key={m}
-            role="tab"
-            aria-selected={mode === m}
-            href={m === "field" ? "/app/go" : "/app/go?mode=focus"}
-            className={cn("label flex min-h-12 items-center justify-center rounded-md text-sm", mode === m ? "bg-ink text-ground" : "text-ink")}
-          >
-            {m === "field" ? "In person" : "Calls"}
-          </Link>
-        ))}
-      </div>
-    </>
   );
 }
