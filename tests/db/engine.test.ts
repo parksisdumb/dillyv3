@@ -213,13 +213,13 @@ describe("rep queue", () => {
       const t = await tenantId(c, "fox");
       const rep = await makeUser(c, t, "queue@test.dev");
       const a = await seedAccount(c, t, rep, { name: "Due Acct", tier: 2 });
-      await c.query("insert into public.task(tenant_id, assignee_user_id, account_id, contact_id, title, due_on) values ($1,$2,$3,$4,'Call back', current_date - 2)", [t, rep, a.account, a.contact]);
+      await c.query("insert into public.task(tenant_id, assignee_user_id, account_id, contact_id, title, due_on) values ($1,$2,$3,$4,'Call back', app.tenant_today($1) - 2)", [t, rep, a.account, a.contact]);
       const cold = await seedAccount(c, t, rep, { name: "Cold P1", tier: 1 });
       await logTouch(c, { tenant_id: t, user_id: rep, account_id: cold.account, channel: "call", outcome: "connected", occurred_at: new Date(Date.now() - 30 * 864e5), skip_follow_up: true });
       await seedAccount(c, t, rep, { name: "Fresh P1", tier: 1 });
       const dnp = await seedAccount(c, t, rep, { name: "DNP", tier: 1 });
       await c.query("insert into public.account_preference(tenant_id, account_id, preference) values ($1,$2,'do_not_pursue')", [t, dnp.account]);
-      await c.query("insert into public.task(tenant_id, assignee_user_id, account_id, title, due_on) values ($1,$2,$3,'Should not show', current_date)", [t, rep, dnp.account]);
+      await c.query("insert into public.task(tenant_id, assignee_user_id, account_id, title, due_on) values ($1,$2,$3,'Should not show', app.tenant_today($1))", [t, rep, dnp.account]);
 
       const q = await c.query("select item_type, account_name, overdue_days from public.rep_queue($1,$2)", [t, rep]);
       const types = q.rows.map((r) => `${r.item_type}:${r.account_name}`);
