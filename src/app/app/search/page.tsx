@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import RouteSkeleton from "./skeleton";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ctx } from "@/lib/server/ctx";
@@ -11,7 +13,7 @@ import { PropertyBadges } from "@/components/accounts/property-badges";
 
 export const metadata: Metadata = { title: "Search" };
 
-export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+async function SearchPageBody({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q: raw } = await searchParams;
   const q = cleanQuery(raw);
   const { sb, tenantId, today } = await ctx();
@@ -119,5 +121,16 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
         </>
       )}
     </div>
+  );
+}
+
+// Skeleton in the page's own Suspense, not a route loading.tsx: a loading.tsx boundary made same-screen navigations
+// (filters, scope, saves) intermittently never commit. See tests/e2e/BUGS.md B9.
+export default async function SearchPage(props: Parameters<typeof SearchPageBody>[0]) {
+  const key = JSON.stringify(await props.searchParams);
+  return (
+    <Suspense key={key} fallback={<RouteSkeleton />}>
+      <SearchPageBody {...props} />
+    </Suspense>
   );
 }

@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import RouteSkeleton from "./skeleton";
 import type { Metadata } from "next";
 import { ctx } from "@/lib/server/ctx";
 import { saveProfile, saveTargeting, deleteTargeting, saveTeamGoal, createInvite, deleteInvite } from "@/lib/actions/settings";
@@ -14,7 +16,7 @@ export const metadata: Metadata = { title: "Settings" };
 
 const DIMENSIONS = { service_line: "Service line", account_type: "Account type", asset_class: "Asset class", market: "Market" } as const;
 
-export default async function SettingsPage() {
+async function SettingsPageBody() {
   const { sb, s, tenantId } = await ctx();
   const ownerish = s.tenant.role === "owner" || s.tenant.role === "admin" || s.isPlatformAdmin;
   const [profile, targeting, tenantRow, invites, markets] = await Promise.all([
@@ -174,5 +176,14 @@ export default async function SettingsPage() {
         </button>
       </form>
     </div>
+  );
+}
+
+// Skeleton in the page's own Suspense, not a route loading.tsx (see tests/e2e/BUGS.md B9).
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<RouteSkeleton />}>
+      <SettingsPageBody />
+    </Suspense>
   );
 }

@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import RouteSkeleton from "./skeleton";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ctx } from "@/lib/server/ctx";
@@ -8,7 +10,7 @@ import { loadPastProperties, loadPropertyBadges } from "@/lib/server/ownership";
 
 export const metadata: Metadata = { title: "Account" };
 
-export default async function AccountDetail({ params }: { params: Promise<{ id: string }> }) {
+async function AccountDetailBody({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const c = await ctx();
@@ -93,5 +95,16 @@ export default async function AccountDetail({ params }: { params: Promise<{ id: 
           .map((p) => ({ id: p.id, name: p.full_name ?? "Unnamed", title: p.title, persona_role: p.persona_role, account_id: id, propertyIds: byContact.get(p.id) ?? [] })),
       }}
     />
+  );
+}
+
+// Skeleton in the page's own Suspense, not a route loading.tsx: a loading.tsx boundary made same-screen navigations
+// (filters, scope, saves) intermittently never commit. See tests/e2e/BUGS.md B9.
+export default async function AccountDetail(props: Parameters<typeof AccountDetailBody>[0]) {
+  const key = JSON.stringify(await props.params);
+  return (
+    <Suspense key={key} fallback={<RouteSkeleton />}>
+      <AccountDetailBody {...props} />
+    </Suspense>
   );
 }

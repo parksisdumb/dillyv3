@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import RouteSkeleton from "./skeleton";
 import type { Metadata } from "next";
 import { ctx } from "@/lib/server/ctx";
 import { mergePointRules } from "@/lib/domain/points";
@@ -13,7 +15,7 @@ export const metadata: Metadata = { title: "Go" };
 
 const MAX_STOPS = 15;
 
-export default async function GoPage({ searchParams }: { searchParams: Promise<{ mode?: string; city?: string }> }) {
+async function GoPageBody({ searchParams }: { searchParams: Promise<{ mode?: string; city?: string }> }) {
   const sp = await searchParams;
   const mode = sp.mode === "focus" ? "focus" : "field";
   const c = await ctx();
@@ -145,5 +147,16 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
       <CityChips cities={cities} city={city} />
       <FieldSession key={city ?? "none"} stops={todays} points={points} />
     </div>
+  );
+}
+
+// Skeleton in the page's own Suspense, not a route loading.tsx: a loading.tsx boundary made same-screen navigations
+// (filters, scope, saves) intermittently never commit. See tests/e2e/BUGS.md B9.
+export default async function GoPage(props: Parameters<typeof GoPageBody>[0]) {
+  const key = JSON.stringify(await props.searchParams);
+  return (
+    <Suspense key={key} fallback={<RouteSkeleton />}>
+      <GoPageBody {...props} />
+    </Suspense>
   );
 }

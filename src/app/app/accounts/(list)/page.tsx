@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import RouteSkeleton from "./skeleton";
 import type { Metadata } from "next";
 import { ctx } from "@/lib/server/ctx";
 import { cleanQuery } from "@/lib/server/zod-helpers";
@@ -6,7 +8,7 @@ import { AccountsListView, type SP } from "@/components/accounts/accounts-list-v
 
 export const metadata: Metadata = { title: "Accounts" };
 
-export default async function AccountsPage({ searchParams }: { searchParams: Promise<SP> }) {
+async function AccountsPageBody({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const { sb, s, tenantId } = await ctx();
   const scope = sp.scope === "all" ? "all" : "mine";
@@ -28,4 +30,15 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   const { data, error } = await query.order("rank_score", { ascending: false, nullsFirst: false }).order("name").limit(150);
 
   return <AccountsListView sp={sp} scope={scope} q={q} data={data} error={error?.message} />;
+}
+
+// Skeleton in the page's own Suspense, not a route loading.tsx: a loading.tsx boundary made same-screen navigations
+// (filters, scope, saves) intermittently never commit. See tests/e2e/BUGS.md B9.
+export default async function AccountsPage(props: Parameters<typeof AccountsPageBody>[0]) {
+  const key = JSON.stringify(await props.searchParams);
+  return (
+    <Suspense key={key} fallback={<RouteSkeleton />}>
+      <AccountsPageBody {...props} />
+    </Suspense>
+  );
 }

@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import RouteSkeleton from "./skeleton";
 import type { Metadata } from "next";
 import { ctx } from "@/lib/server/ctx";
 import { computeBadges } from "@/lib/domain/badges";
@@ -6,7 +8,7 @@ import { MeView } from "@/components/team/me-view";
 
 export const metadata: Metadata = { title: "Me" };
 
-export default async function MePage() {
+async function MePageBody() {
   const { sb, s, tenantId, today } = await ctx();
   const tz = s.tenant.timezone;
   const [events, days, streak, rules, pending] = await Promise.all([
@@ -40,5 +42,14 @@ export default async function MePage() {
         pending: pending.count ?? 0,
       }}
     />
+  );
+}
+
+// Skeleton in the page's own Suspense, not a route loading.tsx (see tests/e2e/BUGS.md B9).
+export default function MePage() {
+  return (
+    <Suspense fallback={<RouteSkeleton />}>
+      <MePageBody />
+    </Suspense>
   );
 }

@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import RouteSkeleton from "./skeleton";
 import type { Metadata } from "next";
 import { ctx } from "@/lib/server/ctx";
 import { OPEN_STAGES } from "@/lib/domain/vocab";
@@ -7,7 +9,7 @@ import { PipelineView } from "@/components/pipeline/pipeline-view";
 
 export const metadata: Metadata = { title: "Pipeline" };
 
-export default async function PipelinePage({ searchParams }: { searchParams: Promise<{ scope?: string }> }) {
+async function PipelinePageBody({ searchParams }: { searchParams: Promise<{ scope?: string }> }) {
   const sp = await searchParams;
   const { sb, s, tenantId, today } = await ctx();
   const scope = sp.scope === "mine" || (!sp.scope && !s.isManager) ? "mine" : "all";
@@ -48,4 +50,15 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
   });
 
   return <PipelineView scope={scope} columns={columns} today={today} error={error?.message} />;
+}
+
+// Skeleton in the page's own Suspense, not a route loading.tsx: a loading.tsx boundary made same-screen navigations
+// (filters, scope, saves) intermittently never commit. See tests/e2e/BUGS.md B9.
+export default async function PipelinePage(props: Parameters<typeof PipelinePageBody>[0]) {
+  const key = JSON.stringify(await props.searchParams);
+  return (
+    <Suspense key={key} fallback={<RouteSkeleton />}>
+      <PipelinePageBody {...props} />
+    </Suspense>
+  );
 }

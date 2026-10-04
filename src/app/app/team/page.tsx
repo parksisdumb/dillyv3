@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import RouteSkeleton from "./skeleton";
 import type { Metadata } from "next";
 import { ctx } from "@/lib/server/ctx";
 import { requireManager } from "@/lib/server/guard";
@@ -7,7 +9,7 @@ import { TeamHomeView } from "@/components/team/team-home-view";
 
 export const metadata: Metadata = { title: "Team" };
 
-export default async function TeamHome() {
+async function TeamHomeBody() {
   const c = await ctx();
   requireManager(c.s);
   // Each card loads on its own: one slow or failing query empties that card, not the page.
@@ -31,5 +33,14 @@ export default async function TeamHome() {
         pending,
       }}
     />
+  );
+}
+
+// Skeleton in the page's own Suspense, not a route loading.tsx (see tests/e2e/BUGS.md B9).
+export default function TeamHome() {
+  return (
+    <Suspense fallback={<RouteSkeleton />}>
+      <TeamHomeBody />
+    </Suspense>
   );
 }

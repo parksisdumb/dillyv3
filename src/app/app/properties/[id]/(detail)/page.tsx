@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import RouteSkeleton from "./skeleton";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ctx } from "@/lib/server/ctx";
@@ -7,7 +9,7 @@ import { PropertyDetailView } from "@/components/accounts/property-detail-view";
 
 export const metadata: Metadata = { title: "Property" };
 
-export default async function PropertyPage({ params }: { params: Promise<{ id: string }> }) {
+async function PropertyPageBody({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const c = await ctx();
@@ -83,5 +85,16 @@ export default async function PropertyPage({ params }: { params: Promise<{ id: s
         },
       }}
     />
+  );
+}
+
+// Skeleton in the page's own Suspense, not a route loading.tsx: a loading.tsx boundary made same-screen navigations
+// (filters, scope, saves) intermittently never commit. See tests/e2e/BUGS.md B9.
+export default async function PropertyPage(props: Parameters<typeof PropertyPageBody>[0]) {
+  const key = JSON.stringify(await props.params);
+  return (
+    <Suspense key={key} fallback={<RouteSkeleton />}>
+      <PropertyPageBody {...props} />
+    </Suspense>
   );
 }
