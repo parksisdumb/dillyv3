@@ -1,6 +1,6 @@
 # Monday launch — the short list
 
-Everything below needs your accounts; the code is done and tested (220 unit/DB tests, 283 end-to-end tests against real Supabase Auth + PostgREST, strict production build). Budget ~60–90 minutes, in this order. Details for each step live in `docs/RUNBOOK.md`.
+Everything below needs your accounts; the code is done and tested (316 unit/DB tests, 303 end-to-end tests against real Supabase Auth + PostgREST — green 3 runs in a row — and a strict production build). Budget ~60–90 minutes, in this order. Details for each step live in `docs/RUNBOOK.md`.
 
 ## 1. Code into GitHub (5 min)
 Fastest: create an empty private repo (e.g. `dilly`), then attach it to the Claude session with push access and say "push it" — I push the full history.
@@ -35,7 +35,10 @@ Reuse the V2 OAuth client if it's already set up: enable Gmail API; add redirect
 
 **If V2 data isn't ready by Monday 8 AM:** launch TSG fresh Monday (nothing to migrate), keep FOX on V2 one more day, cut FOX over Monday night after reconcile passes. No rep loses data either way.
 
-## 7. Rep rollout (Monday morning)
+## 7. Load TSG's book (15 min)
+Accounts → Import (or Settings → Import). Upload your Memphis spreadsheet (format example: `docs/samples/tsg-import-sample.csv`), check the auto-mapped columns, review duplicates in the preview, pick the default rep, Import. Undo is available for 24 hours. Then Accounts → Select → assign accounts to reps.
+
+## 8. Rep rollout (Monday morning)
 - Reps sign in with their work email (magic link or password) — invites are pre-seeded, they land in the right company.
 - Phone: Safari → Share → Add to Home Screen (iPhone, iOS 16.4+ for notifications) / Chrome → Install app (Android). Settings → Notifications → Turn on.
 - Settings → Connect Gmail.
