@@ -10,6 +10,8 @@ import { parseTeamGoal } from "@/lib/domain/team-goal";
 import type { QueueRow } from "@/components/today/queue-item";
 import { TodayView, type BriefLine } from "@/components/today/today-view";
 import { loadPropertyBadges } from "@/lib/server/ownership";
+import { ConnectEmailPrompt } from "@/components/today/connect-email-prompt";
+import { InstallHint } from "@/components/pwa/install-hint";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -126,6 +128,8 @@ async function TodayPageBody() {
 export default function TodayPage() {
   return (
     <Suspense fallback={<RouteSkeleton />}>
+      <InstallHint />
+      <ConnectEmailPrompt />
       <TodayPageBody />
     </Suspense>
   );

@@ -25,6 +25,10 @@ const appEnv: Record<string, string> = {
   PATH: process.env.PATH ?? "",
   HOME: process.env.HOME ?? "/root",
   NEXT_TELEMETRY_DISABLED: "1",
+  // E2E-only Web Push keys (never used outside the local suite): Settings → Notifications renders its real states.
+  VAPID_PUBLIC_KEY: "BBw7Uu3mITizQtb2DXMheM4JFHUkVLCq1FXzQmO7aG7xFJHLwkK9-nIukQKwPLoMoYWh2tg1G0YOozouOGWvRr8",
+  VAPID_PRIVATE_KEY: "3q1A2vIfoor5UtMxSc5c2y1zQKBL0XLFqpNHAorPhrg",
+  VAPID_SUBJECT: "mailto:team@dillyos.com",
 };
 
 const mobile = {
@@ -59,6 +63,9 @@ const config: PlaywrightTestConfig = {
     launchOptions: { executablePath: CHROME },
     locale: "en-US",
     timezoneId: "America/Chicago",
+    // The production build registers /sw.js; keep it out of the way of page.route and network assertions.
+    // tests/e2e/pwa.spec.ts opts back in for the offline-fallback check.
+    serviceWorkers: "block",
   },
   projects: [
     { name: "mobile", use: mobile, testIgnore: /resilience\.spec\.ts$/ },

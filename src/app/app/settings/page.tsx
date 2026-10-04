@@ -11,6 +11,8 @@ import { SelectField, TextField } from "@/components/ui/fields";
 import { Chip, PageHeader, SectionTitle } from "@/components/ui/bits";
 import { btn } from "@/components/ui/styles";
 import { IconLogout } from "@/components/icons";
+import { EmailConnectCard } from "@/components/settings/email-connect-card";
+import { NotificationsSection } from "@/components/push/notifications-section";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -165,10 +167,8 @@ async function SettingsPageBody() {
         </>
       )}
 
-      <SectionTitle>Notifications</SectionTitle>
-      <div className="border-y border-line bg-surface px-4 py-4 text-sm text-muted">
-        Push reminders (max 3 a day, 7 AM–7 PM, weekdays) arrive with the Daily Brief agent. Nothing to set yet.
-      </div>
+      <EmailConnectCard />
+      <NotificationsSection />
 
       <form action={signOut} className="px-4 py-6">
         <button type="submit" className={btn("secondary", "lg", "w-full")}>

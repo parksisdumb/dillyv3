@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ctx } from "@/lib/server/ctx";
 import { cleanQuery } from "@/lib/server/zod-helpers";
+import { phoneDigitsClause } from "@/lib/domain/phone-search";
 import { PERSONA_ROLES, type PersonaRole } from "@/lib/domain/vocab";
 import { SectionTitle, StateChip, TierPill } from "@/components/ui/bits";
 import { input } from "@/components/ui/styles";
@@ -33,7 +34,7 @@ async function SearchPageBody({ searchParams }: { searchParams: Promise<{ q?: st
             .select("id,full_name,title,persona_role,account_id,email")
             .eq("tenant_id", tenantId)
             .is("duplicate_of", null)
-            .or(`full_name.ilike.%${q}%,email.ilike.%${q}%,title.ilike.%${q}%,phone.ilike.%${q}%,mobile.ilike.%${q}%`)
+            .or(`full_name.ilike.%${q}%,email.ilike.%${q}%,title.ilike.%${q}%,phone.ilike.%${q}%,mobile.ilike.%${q}%${phoneDigitsClause(q)}`)
             .limit(10),
           sb
             .from("property_current")

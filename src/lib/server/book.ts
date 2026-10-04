@@ -2,6 +2,7 @@ import "server-only";
 import type { Ctx } from "@/lib/server/ctx";
 import { cleanQuery } from "@/lib/server/zod-helpers";
 import { PERSONA_ROLES } from "@/lib/domain/vocab";
+import { phoneDigitsClause } from "@/lib/domain/phone-search";
 import { ageBandYears, daysSince, isGoingQuiet, type AgeBand } from "@/lib/domain/book";
 import { duplicateGroups } from "@/lib/domain/dupes";
 import { addDays } from "@/lib/format";
@@ -59,7 +60,7 @@ export async function loadContacts(c: Ctx, sp: ContactSP): Promise<{ rows: Conta
     if (ids.length <= 150) q = q.in("account_id", ids);
     else mine = new Set(ids);
   }
-  if (term) q = q.or(`full_name.ilike.%${term}%,email.ilike.%${term}%,title.ilike.%${term}%,phone.ilike.%${term}%,mobile.ilike.%${term}%`);
+  if (term) q = q.or(`full_name.ilike.%${term}%,email.ilike.%${term}%,title.ilike.%${term}%,phone.ilike.%${term}%,mobile.ilike.%${term}%${phoneDigitsClause(term)}`);
   if (sp.role && sp.role in PERSONA_ROLES) q = q.eq("persona_role", sp.role);
   if (sp.show === "never") q = q.is("last_touch_at", null);
   if (sp.show === "email") q = q.not("email", "is", null);
@@ -116,6 +117,7 @@ export type PropertySP = {
   q?: string;
   scope?: string;
   city?: string;
+  market?: string;
   asset?: string;
   roof?: string;
   age?: string;
@@ -151,7 +153,13 @@ export type PropertyListRow = {
 export async function loadProperties(
   c: Ctx,
   sp: PropertySP,
-): Promise<{ rows: PropertyListRow[]; error: string | null; capped: boolean; cities: { city: string; n: number }[] }> {
+): Promise<{
+  rows: PropertyListRow[];
+  error: string | null;
+  capped: boolean;
+  cities: { city: string; n: number }[];
+  markets: { slug: string; name: string; n: number }[];
+}> {
   const { sb, tenantId, today } = c;
   const year = Number(today.slice(0, 4));
   const term = cleanQuery(sp.q);
@@ -172,6 +180,16 @@ export async function loadProperties(
   }
   if (term) q = q.or(`name.ilike.%${term}%,address1.ilike.%${term}%,city.ilike.%${term}%`);
   if (sp.city) q = q.ilike("city", cleanQuery(sp.city));
+  // Tenant markets (tiny): awaited up front only when a market filter is picked, otherwise alongside the list.
+  const marketsP = (async () => {
+    const tm = await sb.from("tenant_market").select("market_id").eq("tenant_id", tenantId);
+    const ids = (tm.data ?? []).map((m) => m.market_id);
+    return ids.length ? ((await sb.from("market").select("id,slug,name").in("id", ids)).data ?? []) : [];
+  })();
+  if (sp.market) {
+    const picked = (await marketsP).find((m) => m.slug === sp.market);
+    if (picked) q = q.eq("market_id", picked.id);
+  }
   if (sp.asset) q = q.ilike("asset_class", cleanQuery(sp.asset));
   if (sp.roof) q = q.ilike("roof_system", cleanQuery(sp.roof));
   const band = sp.age as AgeBand | undefined;
@@ -188,14 +206,23 @@ export async function loadProperties(
 
   const sort = preset ? "age" : sp.sort ?? "recent";
   q = sort === "age" ? q.order("roof_install_year", { ascending: true, nullsFirst: false }) : q.order("name", { nullsFirst: false });
-  const [{ data, error }, cityRows] = await Promise.all([
+  const [{ data, error }, cityRows, marketRows] = await Promise.all([
     q.limit(500),
-    sb.from("property").select("city").eq("tenant_id", tenantId).is("duplicate_of", null).not("city", "is", null).limit(5000),
+    sb.from("property").select("city,market_id").eq("tenant_id", tenantId).is("duplicate_of", null).limit(5000),
+    marketsP,
   ]);
-  if (error) return { rows: [], error: error.message, capped: false, cities: [] };
+  if (error) return { rows: [], error: error.message, capped: false, cities: [], markets: [] };
 
   const counts = new Map<string, number>();
-  for (const r of cityRows.data ?? []) if (r.city) counts.set(r.city, (counts.get(r.city) ?? 0) + 1);
+  const perMarket = new Map<string, number>();
+  for (const r of cityRows.data ?? []) {
+    if (r.city) counts.set(r.city, (counts.get(r.city) ?? 0) + 1);
+    if (r.market_id) perMarket.set(r.market_id, (perMarket.get(r.market_id) ?? 0) + 1);
+  }
+  const markets = marketRows
+    .map((m) => ({ slug: m.slug, name: m.name, n: perMarket.get(m.id) ?? 0 }))
+    .filter((m) => m.n > 0)
+    .sort((a, b) => b.n - a.n);
   const cities = [...counts.entries()]
     .map(([city, n]) => ({ city, n }))
     .sort((a, b) => b.n - a.n)
@@ -232,6 +259,7 @@ export async function loadProperties(
 
   return {
     cities,
+    markets,
     error: null,
     capped: rows.length > 150,
     rows: rows.slice(0, 150).map((r) => ({

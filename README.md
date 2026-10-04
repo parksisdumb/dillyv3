@@ -49,8 +49,8 @@ npm run db:types                # regenerates src/lib/db/database.types.ts from 
 
 ## Known gaps (v0.1)
 
-- Push delivery for reminders is stubbed (decisions are recorded as `insight` rows).
-- Gmail/Outlook sync not yet ported from V2 (reps re-consent once it lands).
+- Push reminders need VAPID keys in env (see `docs/RUNBOOK.md` §11); without them decisions are only recorded as `insight` rows.
+- Gmail sync is ported (metadata only; reps re-consent once — see RUNBOOK §10). Outlook is "coming soon".
 - Go has no map/GPS yet — stops grouped by city with Directions links.
 - Migration column map is a best guess until the V2 schema is confirmed by `migration/02-discover.sh`.
 - Signal-triggered pushes need an event trigger (cron is 30 min).

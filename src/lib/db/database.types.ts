@@ -407,6 +407,7 @@ export type Database = {
           created_by: string | null;
           created_at: string;
           updated_at: string;
+          phone_digits: string | null;
         };
         Insert: {
           id?: string;
@@ -1051,6 +1052,48 @@ export type Database = {
         };
         Relationships: [];
       };
+      push_subscription: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          user_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          user_agent: string | null;
+          created_at: string;
+          last_success_at: string | null;
+          failure_count: number;
+          disabled_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          user_id: string;
+          endpoint: string;
+          p256dh: string;
+          auth: string;
+          user_agent?: string | null;
+          created_at?: string;
+          last_success_at?: string | null;
+          failure_count?: number;
+          disabled_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          user_id?: string;
+          endpoint?: string;
+          p256dh?: string;
+          auth?: string;
+          user_agent?: string | null;
+          created_at?: string;
+          last_success_at?: string | null;
+          failure_count?: number;
+          disabled_at?: string | null;
+        };
+        Relationships: [];
+      };
       rep_day: {
         Row: {
           tenant_id: string;
@@ -1658,6 +1701,7 @@ export type Database = {
       move_contact: { Args: { p_contact: string; p_new_account: string; p_new_title?: string; p_effective?: string }; Returns: unknown };
       rep_queue: { Args: { p_tenant: string; p_user: string; p_day?: string }; Returns: { item_type: string | null; task_id: string | null; account_id: string | null; contact_id: string | null; opportunity_id: string | null; property_id: string | null; title: string | null; reason: string | null; due_on: string | null; overdue_days: number | null; score: number | null; account_name: string | null; contact_name: string | null; phone: string | null; email: string | null; icp_tier: number | null }[] };
       rep_streak: { Args: { p_tenant: string; p_user: string }; Returns: number };
+      save_push_subscription: { Args: { p_tenant: string; p_endpoint: string; p_p256dh: string; p_auth: string; p_user_agent?: string }; Returns: unknown };
       set_property_flag: { Args: { p_property: string; p_flag: string; p_on: boolean; p_note?: string }; Returns: boolean };
       transfer_properties: { Args: { p_properties: string[]; p_role: string; p_new_account: string; p_effective?: string; p_contacts_with_building?: string[]; p_contacts_with_old_company?: string[]; p_note?: string }; Returns: unknown };
       transfer_property: { Args: { p_property: string; p_role: string; p_new_account: string; p_effective?: string; p_contacts_with_building?: string[]; p_contacts_with_old_company?: string[]; p_note?: string; p_intro_task?: boolean }; Returns: unknown };

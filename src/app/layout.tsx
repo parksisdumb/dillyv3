@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Semi_Condensed } from "next/font/google";
 import "./globals.css";
+import { ServiceWorkerRegister } from "@/components/pwa/sw-register";
 
 const barlow = Barlow({
   variable: "--font-barlow",
@@ -19,6 +20,12 @@ const barlowSemi = Barlow_Semi_Condensed({
 export const metadata: Metadata = {
   title: { default: "Dilly", template: "%s · Dilly" },
   description: "Business development for commercial roofing reps.",
+  applicationName: "Dilly",
+  // iOS: installed to the home screen, Dilly opens full screen (and can receive web push, iOS 16.4+).
+  appleWebApp: { capable: true, title: "Dilly", statusBarStyle: "default" },
+  icons: { apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }] },
+  // Next emits only `mobile-web-app-capable`; older iOS Safari still reads the apple- prefixed one.
+  other: { "apple-mobile-web-app-capable": "yes" },
 };
 
 export const viewport: Viewport = {
@@ -34,7 +41,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className={`${barlow.variable} ${barlowSemi.variable} bg-ground text-ink antialiased`}>{children}</body>
+      <body className={`${barlow.variable} ${barlowSemi.variable} bg-ground text-ink antialiased`}>
+        {children}
+        <ServiceWorkerRegister />
+      </body>
     </html>
   );
 }

@@ -9,7 +9,7 @@ import { loadAllTenants, perTenant, tenantsWhere } from "../tenants";
 /**
  * Every 30 min: for tenants inside their push window (07:00–19:00 local, weekdays unless enabled),
  * apply the reminder ladder per rep and record the pushes due now as `insight` rows (kind 'reminder').
- * Delivery: TODO(web-push) — see PushSender in src/agents/rep-daily-brief/reminders.ts.
+ * Delivery: Web Push to the rep's devices when VAPID env is set (src/lib/push/sender.ts), else record-only.
  *
  * Idempotent: pushes already decided today are read back from prior runs (pushKeysSentToday), so a
  * double fire records nothing new. One rep's or one tenant's failure never stops the rest.

@@ -1,8 +1,9 @@
 /**
  * Reminder ladder + manager escalations (04-POD-3 §3.12), driven by rank.ts.
  *
- * v1 records decisions as `insight` rows (kind 'reminder' / 'escalation') linked to an agent_run whose
- * subject_user_id is the rep. Actual Web Push delivery is a later step — see PushSender below.
+ * Decisions are recorded as `insight` rows (kind 'reminder' / 'escalation') linked to an agent_run whose
+ * subject_user_id is the rep, then delivered by Web Push to the rep's devices (src/lib/push) when VAPID keys are
+ * configured. Without them, delivery falls back to record-only.
  */
 import { hhmmToMinutes, isWeekend, localClock } from "../runtime/clock";
 import { must, type Db } from "../runtime/db";
@@ -10,14 +11,22 @@ import { runAgent, type RunDeps } from "../runtime/run";
 import { AGENT_KEY } from "./agent";
 import { loadRepContext, type RepContext, type TenantInfo } from "./data";
 import { rank, type BriefSettings, type Escalation, type PushDecision } from "./rank";
+import { notificationFor, type PushPayload } from "@/lib/push/copy";
+import { defaultPushSender } from "@/lib/push/sender";
 
 /**
- * TODO(web-push): real delivery. Implement with the PWA Web Push API (VAPID keys in env, a
- * `push_subscription` table owned by the app team) or the optional Twilio SMS fallback for opted-in reps.
- * Contract: called once per decided push, after the insight row is written; must be idempotent on push.key.
+ * Delivery for one decided push. Called once per push, after the insight rows are written.
+ * Must be idempotent on push.key (Web Push: the notification tag is the key, so a resend replaces itself).
+ * Default: Web Push (src/lib/push/sender.ts) when VAPID env is set, else record-only.
  */
 export interface PushSender {
-  send(args: { tenantId: string; userId: string; push: PushDecision }): Promise<{ delivered: boolean; channel: string }>;
+  send(args: {
+    tenantId: string;
+    userId: string;
+    push: PushDecision;
+    /** Device copy + the exact screen to open (built from the ranked items). */
+    notification?: PushPayload;
+  }): Promise<{ delivered: boolean; channel: string; devices?: number; sent?: number; failed?: number; disabled?: number }>;
 }
 
 /** v1 default: record only, deliver nothing. */
@@ -87,7 +96,6 @@ export async function runRemindersForRep(
   const now = args.now ?? new Date();
   if (!inPushWindow(args.tenant.settings, now)) return { runId: null, pushes: [] };
   const loader = deps.loader ?? loadRepContext;
-  const sender = deps.sender ?? recordOnlySender;
   const clock = localClock(args.tenant.timezone, now);
 
   const rc = await loader(deps.db, args.tenant.id, args.userId, clock.date, now);
@@ -95,6 +103,8 @@ export async function runRemindersForRep(
   const r = rankFor(rc, { clock, pushesSentToday: sent });
   const due = r.pushes.filter((p) => p.dueNow);
   if (!due.length) return { runId: null, pushes: [] };
+  const sender = deps.sender ?? (await defaultPushSender(deps.db)) ?? recordOnlySender;
+  const items = new Map(r.items.map((i) => [i.key, i]));
 
   const { runId } = await runAgent(
     {
@@ -120,7 +130,15 @@ export async function runRemindersForRep(
           "insert reminder insights",
         );
         const results = [];
-        for (const push of due) results.push({ key: push.key, ...(await sender.send({ tenantId: args.tenant.id, userId: args.userId, push })) });
+        for (const push of due) {
+          const notification = notificationFor(push, items);
+          try {
+            results.push({ key: push.key, url: notification.url, ...(await sender.send({ tenantId: args.tenant.id, userId: args.userId, push, notification })) });
+          } catch (err) {
+            // Delivery trouble never loses the recorded reminder; it shows up in the step output instead.
+            results.push({ key: push.key, url: notification.url, delivered: false, channel: "error", error: err instanceof Error ? err.message : String(err) });
+          }
+        }
         return { recorded: due.length, results, suppressed: r.suppressedPushes };
       });
       return { mode: "reminders", forDate: clock.date, pushes: due };

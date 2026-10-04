@@ -30,7 +30,7 @@ The goal: **the app does not go down**, and when a dependency does, reps see a c
    - `curl -s https://<app>/api/health` → `200` and `"ok":true`, `version` = the commit you shipped.
    - Sign in → Today renders with the queue → log one touch → toast shows points.
    - Accounts, Go, Pipeline open; Team opens for a manager.
-5. **Inngest**: Inngest dashboard → Apps → *dilly* → "Resync" if functions changed; confirm the functions are listed (5 at launch).
+5. **Inngest**: Inngest dashboard → Apps → *dilly* → "Resync" if functions changed; confirm the functions are listed (7 at launch: 5 + `mail-sync-fanout`, `mail-sync-run`).
 
 ## 2. Environment variables
 
@@ -50,6 +50,10 @@ Empty values are treated as unset (they never crash boot).
 | `DILLY_LLM_TIMEOUT_MS` | optional, default 30000 | Per-call Anthropic timeout |
 | `LOG_LEVEL` | optional, default `info` | — |
 | `SENTRY_DSN` | **TODO**, not wired | See `src/lib/observability/log.ts` (`setErrorReporter`) |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Push reminders to phones (§11) — `npx tsx scripts/gen-vapid.ts` | Reminders are still decided and recorded (`insight` rows) but not sent; Settings says phone reminders aren't switched on |
+| `VAPID_SUBJECT` | optional, default `mailto:team@dillyos.com` | — |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Gmail sync (§10) | Email section hidden for reps; admins see "Email sync isn't configured yet" |
+| `MAIL_TOKEN_KEY` | Gmail sync — 32 random bytes, base64 (`openssl rand -base64 32`) | Same as above. **Never rotate casually**: stored tokens become unreadable and every rep must reconnect |
 
 Vercel provides `VERCEL_GIT_COMMIT_SHA` (shown as `version` in `/api/health`) and `VERCEL_REGION`.
 Pin the Vercel function region to the one closest to the Supabase region (Project → Settings → Functions).
@@ -127,7 +131,10 @@ stored in `touch.external_id` (`idem:<uuid>`); a repeat hits the unique index an
 - [ ] Supabase Auth → URL config: Site URL = production URL; `<url>/auth/callback` in redirect URLs.
 - [ ] Vercel env vars set for Production (§2); `NEXT_PUBLIC_APP_URL` = production URL.
 - [ ] Vercel function region matches the Supabase region.
-- [ ] Inngest integration installed; all functions synced (5 at launch); failure alerts on.
+- [ ] Inngest integration installed; all functions synced (7 at launch); failure alerts on.
+- [ ] Gmail sync configured and verified with one FOX rep (§10).
+- [ ] VAPID keys set (§11); on one iPhone (home-screen app) and one Android: Settings → Notifications → Turn on
+      reminders → Send test notification arrives and opens Today.
 - [ ] Uptime monitor on `/api/health` alerting to a phone.
 - [ ] Vercel saved log query `level:error`.
 - [ ] Production smoke test on a phone over cellular (§1.4), including a double-tap on a Log outcome
@@ -162,3 +169,96 @@ Reproduce:
 DB=dilly_perf ./scripts/local/reset-db.sh
 psql "postgresql://postgres@localhost:54329/dilly_perf?host=/tmp" -f scripts/local/loadtest.sql
 ```
+
+## 10. Gmail sync
+
+Carries over V2's "Connect your Gmail": emails to and from a rep's **existing contacts** log as `email` touches
+(`source = 'gmail'`), and the follow-up engine closes / schedules tasks from them (a reply → "Respond to X",
+priority 85, due next business day). We read **metadata only** (`gmail.metadata` scope: sender, recipients, subject,
+date, labels) — never bodies. Mail with people who aren't contacts is counted in the run log, never stored. Outlook
+is "coming soon" (`src/lib/mail/provider.ts` is the interface Microsoft Graph `Mail.ReadBasic` will implement).
+
+**Google Cloud console** (do this before Monday — reps can't connect until it's done):
+
+1. Use the **same Google Cloud project / OAuth client V2 used** (reps already trust it; it's what FOX's Workspace
+   admin approved), or create one: APIs & Services → Credentials → Create credentials → OAuth client ID → *Web application*.
+2. APIs & Services → Library → enable the **Gmail API**.
+3. On the OAuth client → **Authorized redirect URIs** → add exactly `https://<app>/api/mail/google/callback`
+   (the production URL = `NEXT_PUBLIC_APP_URL`; add the Preview URL too if you test there). Keep V2's URI if reusing.
+4. OAuth consent screen → Scopes: `openid`, `email`, `.../auth/gmail.metadata`. **`gmail.metadata` is a
+   restricted scope.** Until Google verifies the app (security assessment, weeks), leave Publishing status = **Testing**
+   and add **every rep's Google address as a Test user** (max 100). Testing-mode grants expire after 7 days → reps would
+   see "Reconnect Gmail" weekly; if V2's client is already verified / In production, reuse it to avoid that.
+5. **Google Workspace admins (FOX `foxroofing.co`, TSG)**: Admin console → Security → Access and data control →
+   **API controls → App access control → Manage third-party app access** → add the OAuth client ID → **Trusted**.
+   V2 hit exactly this block on foxroofing.co ("Access blocked: … has not completed the Google verification process" /
+   "admin has blocked"). Do this for each tenant's Workspace.
+6. Copy the client ID + secret into Vercel (Production + Preview): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
+   and a new `MAIL_TOKEN_KEY` (`openssl rand -base64 32`). Redeploy. Resync Inngest.
+
+**How it works**
+
+- Settings → Email sync → *Continue with Google* (`/api/mail/google/start` → Google → `/api/mail/google/callback`).
+  State is an HMAC-signed 10-minute token + httpOnly cookie. Refresh/access tokens are AES-256-GCM encrypted with
+  `MAIL_TOKEN_KEY` before they reach the DB (the table rejects anything else); only the service role can read them;
+  the browser only ever sees `public.my_mail_connection` (email, status, last synced, last error).
+- First sync: last 30 days (no search query — the metadata scope forbids `q`; Promotions/Social/chats/drafts/spam are
+  filtered by label). Mail older than 7 days logs without creating tasks. Then every 10 min (`mail-sync-fanout` →
+  `mail-sync-run`) from the Gmail history cursor. ≤ 10 parallel fetches, ≤ 500 messages per run (continues next tick).
+  Messages V2 already logged (migrated as `dillyv2` / `gmail:<id>`) are skipped, so cutover never double-logs.
+- **Points**: inbound synced mail (replies, auto-replies, bounces) awards nothing; outbound awards `touch_logged`
+  only, and only if sent in the last 24 h (no points for the backfill). Auto-replies/bounces don't close follow-ups;
+  a bounce sets the contact's `email_status = 'bounced'`.
+- Google removed access (`invalid_grant`: password change, revoked, Testing-mode expiry): the connection goes to
+  `status = 'error'`, Settings and Today show "Reconnect Gmail — Google access was removed". Disconnect revokes at
+  Google and wipes the tokens; touches already logged stay.
+
+**Verify after deploy**
+
+1. As a rep: Settings → Email sync → Continue with Google → approve → back on Settings with "Gmail connected".
+2. Inngest → `mail-sync-run` → the run's output: `fetched`, `logged`, `unknownSenders`, `phase`. Logs: `msg:"mail:sync"`.
+3. Send an email from that Gmail to a contact in Dilly → within 10 min (or *Sync now*) it shows on the contact's
+   timeline as an email touch, and Today has "Follow up on email to …".
+4. SQL editor: `select email, status, last_synced_at, last_sync_stats from public.mail_connection;`
+   — `last_sync_stats` holds counts only. Errors: logs `mail:sync-failed`, `mail:sync-revoked`, `mail:oauth-callback-failed`.
+
+## 11. Push notifications & PWA
+
+Dilly installs to the home screen (manifest at `/manifest.webmanifest`, icons in `public/icons` from
+`scripts/gen-icons.ts`) and delivers the reminder ladder (≤ 3 a day, inside the tenant's push window, weekdays unless
+enabled — all decided in `rank.ts`) as Web Push.
+
+**Setup (once per environment)**
+
+1. `npx tsx scripts/gen-vapid.ts` → set `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT=mailto:team@dillyos.com`
+   in Vercel (Production + Preview — or separate pairs). Redeploy.
+2. **Keep the keys.** Rotating them invalidates every phone's subscription; reps would have to turn reminders back on.
+3. `supabase db push` applies `20261004100500_push_subscription_and_phone_search.sql` (`push_subscription` table + RLS,
+   `save_push_subscription()`, `contact.phone_digits`).
+
+**What reps do on their phone (Monday)**
+
+- **iPhone (iOS 16.4 or later — web push only works from the home-screen app):** open Dilly in **Safari** → Share →
+  **Add to Home Screen** → open Dilly from the new icon and sign in → Settings → Notifications → **Turn on reminders**
+  → Allow. Today shows a one-time "Add Dilly to your home screen" hint in Safari. In Chrome/Firefox on iPhone, or in
+  Safari without installing, push isn't available and Settings explains the steps.
+- **Android (Chrome):** open Dilly → ⋮ → **Install app** (or Add to Home screen) → Settings → Notifications →
+  **Turn on reminders** → Allow. Works in the browser tab too.
+- Then **Send test notification**. Each phone/browser is a separate device in "My devices"; remove old ones there.
+- Blocked by mistake: iPhone Settings → Notifications → Dilly → Allow; Android: long-press the icon → App info →
+  Notifications. Settings shows these steps when it detects the block.
+
+**How it works**
+
+- Reminders cron (every 30 min) → `runRemindersForRep` records the `insight` rows, then `src/lib/push/sender.ts` sends
+  to every active `push_subscription` of the rep. Copy is specific and opens the item: "Call Dave back — Greystar
+  Riverside" → `/app/accounts/<id>`; overdue group → Today. The push key is the notification tag, so a retried send
+  replaces itself on the phone. Per-push results (`delivered`, `sent`, `failed`, `disabled`, `url`) are in the
+  `record-reminders` step output of the agent run.
+- 404/410 from the push service → the subscription is disabled (shows "Stopped" in My devices); other errors bump
+  `failure_count` ("Not answering"). Logs: `push:send-failed`, `push:subscription-gone`.
+- Service worker (`public/sw.js`, production builds only): precaches `/offline` + icons; cache-first for
+  `/_next/static` and `/icons`; navigations are network-first with the `/offline` fallback. **Page HTML, API, server
+  actions and Supabase responses are never cached.** Logging still needs signal (no offline queue). Changing caching
+  rules → bump `VERSION` in `sw.js`; old caches are deleted on activate. `/sw.js` is served `no-cache`.
+- Kill switch: unset the VAPID env vars (reminders go back to record-only).

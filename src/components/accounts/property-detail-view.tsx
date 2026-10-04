@@ -141,7 +141,7 @@ export function PropertyDetailView({ d, preview }: { d: PropertyDetailData; prev
       )}
 
       <OpenTasks tasks={d.tasks} today={today} />
-      <Opportunities opps={d.opps} today={today} newHref={p.account_id ? `/app/pipeline/new?account=${p.account_id}` : undefined} />
+      <Opportunities opps={d.opps} today={today} newHref={`/app/pipeline/new?property=${p.id}${p.account_id ? `&account=${p.account_id}` : ""}`} />
       <LinkedList kind="contacts" selfId={p.id} links={d.contacts} />
 
       <SectionTitle>Timeline</SectionTitle>

@@ -64,6 +64,8 @@ const nextConfig: NextConfig = {
       { source: "/:path*", headers: securityHeaders },
       // Probes and webhooks must never be cached by a CDN in between.
       { source: "/api/:path*", headers: [{ key: "Cache-Control", value: "no-store, max-age=0" }] },
+      // The service worker must always be revalidated, or a fixed sw.js can take a day to reach phones.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, max-age=0, must-revalidate" }] },
     ];
   },
 };

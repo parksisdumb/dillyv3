@@ -31,6 +31,7 @@ export function PropertiesListView({
   sp,
   rows,
   cities,
+  markets = [],
   today,
   error,
   capped,
@@ -38,6 +39,7 @@ export function PropertiesListView({
   sp: PropertySP;
   rows: PropertyListRow[];
   cities: { city: string; n: number }[];
+  markets?: { slug: string; name: string; n: number }[];
   today: string;
   error?: string | null;
   capped?: boolean;
@@ -106,6 +108,18 @@ export function PropertiesListView({
           </FilterChip>
         ))}
       </div>
+      {(markets.length > 1 || (sp.market && markets.length > 0)) && (
+        <div className="mt-2 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Market">
+          <FilterChip href={hrefWith(base, sp, { market: undefined })} active={!sp.market}>
+            All markets
+          </FilterChip>
+          {markets.map((m) => (
+            <FilterChip key={m.slug} href={hrefWith(base, sp, { market: m.slug })} active={sp.market === m.slug}>
+              {m.name} <span className="num ml-1 opacity-70">{m.n}</span>
+            </FilterChip>
+          ))}
+        </div>
+      )}
       {cities.length > 1 && (
         <div className="mt-2 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="City">
           <FilterChip href={hrefWith(base, sp, { city: undefined })} active={!sp.city}>
