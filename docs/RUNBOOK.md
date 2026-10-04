@@ -257,7 +257,7 @@ enabled — all decided in `rank.ts`) as Web Push.
 
 **How it works**
 
-- Reminders cron (every 30 min) → `runRemindersForRep` records the `insight` rows, then `src/lib/push/sender.ts` sends
+- Reminders cron (every 15 min) → `runRemindersForRep` records the `insight` rows, then `src/lib/push/sender.ts` sends
   to every active `push_subscription` of the rep. Copy is specific and opens the item: "Call Dave back — Greystar
   Riverside" → `/app/accounts/<id>`; overdue group → Today. The push key is the notification tag, so a retried send
   replaces itself on the phone. Per-push results (`delivered`, `sent`, `failed`, `disabled`, `url`) are in the
@@ -339,3 +339,41 @@ enabled — all decided in `rank.ts`) as Web Push.
 - **Scorecard definitions**: qualified meeting = touch with outcome *scheduled_inspection* / *met_decision_maker*, or a
   meeting / roof walk / inspection where someone was met. Paperwork = `account.paperwork_at` (first reach of
   *paperwork_received* or later; migrated V2 accounts already past it have no date). In person = Pace's in-person channels.
+
+## 13. Appointments (inspections, roof walks, meetings…)
+
+`20261004400000_appointments.sql`: `appointment` (+ `appointment_property` for a series of buildings in visiting
+order, `appointment_contact`, `appointment_change` audit). RLS is the fast `app.my_tenant_ids()` pattern; delete is
+owner/admin only (reps cancel). Screens: **Schedule** on property / account / contact pages, on Today and Go;
+`/app/appointments/<id>` (stops in order, directions, attendees with call/email, Log outcome, reschedule/cancel,
+Google Calendar link, `.ics` download at `/app/appointments/<id>/ics`, Copy address). Times are picked in the
+company's zone (`tenant.timezone`); the `.ics` carries `DTSTART;TZID=<zone>` and a VTIMEZONE (US DST rules).
+
+- **Booking logs nothing.** Completing = **Log outcome** (the normal Log sheet in appointment mode; channel defaults
+  from the kind). Off: one touch at the account. "Log each building": one touch per building (every building's
+  timeline). Points and the next follow-up come from the outcome touch only; the other buildings' touches are timeline
+  records (points voided). `public.log_appointment_outcome` is one transaction and idempotent (offline replays /
+  double taps return the same touch).
+- **Booked inspection in the Log sheet** asks "When?" (optional). With a date it creates the appointment in the same
+  server action (`appointment.booked_touch_id` = that touch; a retry reuses it).
+- **Points (no double counting):** an inspection / roof-walk appointment awards `inspection_booked` (+10) to whoever
+  booked it — unless it came from a logged "Booked inspection" touch (`booked_touch_id`), or that rep already holds a
+  live `inspection_booked` on the same account that tenant-day. Reverse order too: a "Booked inspection" touch logged
+  after an appointment booking on the same account the same day is recorded voided. Canceling voids the booking
+  points (putting it back restores them). Meetings / lunch & learns / calls award nothing at booking.
+- **"Log outcome: {title}" task**: the day after an appointment that still has no outcome
+  (`public.appointment_outcome_tasks`, run on Today page load and in the 06:00 brief fan-out; one per appointment,
+  ever). Its Log button logs the appointment's outcome; logging closes it; cancel / no-show drops it; moving the
+  appointment to a future date removes it.
+- **Scorecard**: completed meeting / inspection / roof-walk appointments (outcome not "not there / no answer / …")
+  count as one qualified meeting each for the assigned rep, on the appointment's date; their outcome touches don't
+  count a second time. No-shows and cancels don't count.
+- **Brief + reminders**: today's appointments lead the brief queue in time order; the Due line starts
+  "N appointments (first 9:00 at …)". A push goes out `reminder_minutes` (default 60) before each one
+  (cron every 15 min, so up to 15 min early-late). Appointment reminders **bypass the 3-a-day cap** (and don't use it
+  up) but **not quiet hours / weekends**: one that would fall before the window opens moves to the window start if
+  that's still before the appointment, otherwise it's skipped. They go to reps in `brief_roles` (default reps).
+- **Go = "My day"**: today's appointments (expand into buildings) → the working list (`getMyWorkingListStops`, falls
+  back to queue accounts + my best accounts by city) → Route (appointment stops first, in time order, then the list
+  nearest-first). "Call through this list" (`/app/go?mode=calls`, old `?mode=focus` links still work) replaces the
+  Calls mode.

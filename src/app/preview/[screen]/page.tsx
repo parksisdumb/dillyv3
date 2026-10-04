@@ -8,48 +8,68 @@ import { PipelineView } from "@/components/pipeline/pipeline-view";
 import { TeamHomeView } from "@/components/team/team-home-view";
 import { ApprovalsView } from "@/components/team/approvals-view";
 import { MeView } from "@/components/team/me-view";
-import { CityChips, GoHeader } from "@/components/go/go-chrome";
-import { FieldSession } from "@/components/go/field-session";
+import { MyDay } from "@/components/go/my-day";
+import { AppointmentDetailView } from "@/components/appointments/appointment-detail-view";
+import { ScheduleEntry } from "@/components/appointments/appt-card";
+import { appointmentFixtures } from "@/app/preview/appointment-fixtures";
 import { FocusSession } from "@/components/go/focus-session";
 import { ContactsListView } from "@/components/accounts/contacts-list-view";
 import { PropertiesListView } from "@/components/accounts/properties-list-view";
 import { ContactDetailView } from "@/components/accounts/contact-detail-view";
 import { PropertyDetailView } from "@/components/accounts/property-detail-view";
 import { fixtures } from "@/app/preview/fixtures";
+import { listsAdminPreview } from "@/app/preview/lists-admin-preview";
 import { importFixtures } from "@/app/preview/fixtures-import";
 import { ImportWizard } from "@/components/import/import-wizard";
 import { ScorecardView } from "@/components/team/scorecard-view";
-import { PreviewCardScan, PreviewLogPhotos, PreviewLogSheet, PreviewToast } from "@/app/preview/preview-client";
+import { PreviewCardScan, PreviewLogPhotos, PreviewLogSheet, PreviewScheduleSheet, PreviewToast } from "@/app/preview/preview-client";
 import { fieldKitFixtures } from "@/app/preview/field-kit-fixtures";
 import { PageHeader } from "@/components/ui/bits";
 import type { QueuedLog } from "@/lib/offline/types";
 
 export const dynamic = "force-dynamic";
 
-// Screens: property-transfer-1..3, account-move, contact-move, contacts, properties, properties-stale, contact, property, property-empty, today, go, go-focus, accounts, account, log-1, log-2, log-3, log-toast, pipeline, team, approvals, me, import-map, import-preview, import-issues, scorecard, accounts-select
+// Screens: today-appointments, my-day, appointment-detail, schedule-sheet, property-transfer-1..3, account-move, contact-move, contacts, properties, properties-stale, contact, property, property-empty, today, go, go-focus, accounts, account, log-1, log-2, log-3, log-toast, pipeline, team, approvals, me, import-map, import-preview, import-issues, scorecard, accounts-select
 
 export default async function PreviewPage({ params }: { params: Promise<{ screen: string }> }) {
   if (process.env.DILLY_PREVIEW !== "1") notFound();
   const { screen } = await params;
   const f = fixtures();
-  const manager = ["team", "approvals", "import-map", "import-preview", "import-issues", "scorecard", "accounts-select"].includes(screen);
+  const manager = ["admin-team", "admin-create-login", "list-detail", "team", "approvals", "import-map", "import-preview", "import-issues", "scorecard", "accounts-select"].includes(screen);
   const session = manager ? { ...f.session, fullName: "Tyler Fox", email: "tyler@foxroofing.co", tenant: { ...f.session.tenant, role: "manager" } } : f.session;
 
   let body: React.ReactNode;
   let active = "/app/today";
   let queuePreview: QueuedLog[] | undefined;
   const fk = fieldKitFixtures(f.today, f.austinStops);
+  const ap = appointmentFixtures(f.today, f.austinStops);
+  const myDay = (stops = ap.stops, route = false) => (
+    <>
+      <PageHeader title="My day" />
+      <MyDay appointments={ap.appts} stops={stops} listTitle="Suggested stops · Austin" callHref="/app/go?mode=calls" initialRoute={route} />
+    </>
+  );
   switch (screen) {
     case "today":
       body = <TodayView d={f.todayData} />;
       break;
+    case "today-appointments":
+      body = <TodayView d={{ ...f.todayData, appointments: ap.appts }} />;
+      break;
     case "go":
+    case "my-day":
       active = "/app/go";
+      body = myDay();
+      break;
+    case "appointment-detail":
+      body = <AppointmentDetailView a={ap.detail} google={ap.google} today={f.today} />;
+      break;
+    case "schedule-sheet":
+      active = "/app/accounts";
       body = (
         <>
-          <GoHeader mode="field" />
-          <CityChips cities={f.cities} city="Austin" />
-          <FieldSession stops={f.austinStops} points={f.points} />
+          <AccountDetailView d={f.account} schedule={<ScheduleEntry target={{ accountId: f.account.id }} appointments={ap.appts.upcoming.slice(0, 1)} label="Schedule a visit" />} />
+          <PreviewScheduleSheet initial={ap.schedule} />
         </>
       );
       break;
@@ -57,7 +77,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ screen
       active = "/app/go";
       body = (
         <>
-          <GoHeader mode="focus" />
+          <PageHeader title="Call through the list" />
           <FocusSession items={f.focus} points={f.points} />
         </>
       );
@@ -230,28 +250,24 @@ export default async function PreviewPage({ params }: { params: Promise<{ screen
       break;
     case "go-route":
       active = "/app/go";
-      body = (
-        <>
-          <GoHeader mode="field" />
-          <CityChips cities={f.cities} city="Austin" />
-          <FieldSession stops={fk.routeStops} points={f.points} initialRoute />
-        </>
-      );
+      body = myDay(fk.routeStops.map((s) => ({ ...s, key: s.propertyId ?? s.accountId })), true);
       break;
     case "offline-queued":
       active = "/app/go";
       queuePreview = fk.queued;
       body = (
         <>
-          <GoHeader mode="field" />
-          <CityChips cities={f.cities} city="Austin" />
-          <FieldSession stops={fk.routeStops} points={f.points} />
+          {myDay(fk.routeStops.map((s) => ({ ...s, key: s.propertyId ?? s.accountId })))}
           <PreviewToast text="Saved on this phone · Waiting for signal · 2 queued" />
         </>
       );
       break;
-    default:
-      notFound();
+    default: {
+      const la = listsAdminPreview(screen, f);
+      if (!la) notFound();
+      body = la.body;
+      active = la.active;
+    }
   }
 
   return (

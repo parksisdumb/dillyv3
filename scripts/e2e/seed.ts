@@ -244,6 +244,20 @@ export async function seed(log: (m: string) => void = console.log): Promise<Seed
 
   // --- wipe tenant business data --------------------------------------------------------------------------------
   const both = [fox, tsg];
+  // Companies the admin specs created (slug e2e-…): gone, with everything in them.
+  {
+    const { error } = await sb.from("tenant").delete().like("slug", "e2e-%");
+    if (error) throw new Error(`wipe e2e companies: ${error.message}`);
+  }
+  // Lists + active pursuits (system lists stay: the migration seeds them per company).
+  for (const table of ["property_pursuit", "list_assignment", "list_item", "admin_audit"]) {
+    const { error } = await sb.from(table).delete().in("tenant_id", both);
+    if (error) throw new Error(`wipe ${table}: ${error.message}`);
+  }
+  {
+    const { error } = await sb.from("list").delete().in("tenant_id", both).neq("created_from", "system");
+    if (error) throw new Error(`wipe list: ${error.message}`);
+  }
   for (const table of [
     "approval",
     "brief",

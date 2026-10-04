@@ -35,3 +35,15 @@ export type FocusItem = {
   reason: string | null;
   tier: number | null;
 };
+
+/** A stop on "My day" (Go). */
+export type DayStop = Stop & {
+  /** Stable key: the building, else the account. */
+  key: string;
+  /** "Met in person" etc. when I already logged here today. */
+  logged?: string | null;
+  /** From an assigned list / active pursuit (vs. the suggested fallback). */
+  listName?: string | null;
+};
+
+export const stopKey = (s: Pick<Stop, "propertyId" | "accountId">) => s.propertyId ?? `acct:${s.accountId}`;

@@ -3,7 +3,7 @@ import { money, quietLabel } from "@/lib/format";
 import { PageHeader } from "@/components/ui/bits";
 import { btn } from "@/components/ui/styles";
 import { TeamCard } from "@/components/team/card";
-import { IconCheck, IconList } from "@/components/icons";
+import { IconCheck, IconList, IconSettings } from "@/components/icons";
 import type { PaceRow } from "@/lib/server/team";
 import type { Scorecard } from "@/lib/domain/scorecard";
 import { ScorecardCard } from "@/components/team/scorecard-view";
@@ -16,6 +16,7 @@ export type TeamHomeData = {
   health: { duplicates: number; propertiesIncomplete: number; completePct: number };
   pending: number;
   scorecard?: Scorecard | null;
+  working?: { user_id: string; name: string; active: number; stale: number }[];
 };
 
 export function TeamHomeView({ d }: { d: TeamHomeData }) {
@@ -26,16 +27,38 @@ export function TeamHomeView({ d }: { d: TeamHomeData }) {
   return (
     <div>
       <PageHeader title="Team" sub={`${tenantName} · this week`} />
-      <div className="flex gap-2 px-4 pb-3">
-        <Link href="/app/approvals" className={btn("secondary", "md", "flex-1")}>
-          <IconCheck size={18} /> Approvals{pending > 0 && <span className="num rounded bg-accent px-1.5 text-accent-ink">{pending}</span>}
+      <div className="grid grid-cols-3 gap-2 px-4 pb-3">
+        <Link href="/app/approvals" className={btn("secondary", "sm", "min-w-0 px-2")}>
+          <span className="hidden sm:inline-flex"><IconCheck size={18} /></span> Approvals{pending > 0 && <span className="num rounded bg-accent px-1.5 text-accent-ink">{pending}</span>}
         </Link>
-        <Link href="/app/team/activity" className={btn("secondary", "md", "flex-1")}>
-          <IconList size={18} /> Activity
+        <Link href="/app/team/activity" className={btn("secondary", "sm", "min-w-0 px-2")}>
+          <span className="hidden sm:inline-flex"><IconList size={18} /></span> Activity
+        </Link>
+        <Link href="/app/admin" className={btn("secondary", "sm", "min-w-0 px-2")}>
+          <span className="hidden sm:inline-flex"><IconSettings size={18} /></span> Admin
         </Link>
       </div>
       <div className="grid grid-cols-1 gap-3 px-4 md:grid-cols-2">
         {d.scorecard && <ScorecardCard sc={d.scorecard} />}
+        {d.working && (
+          <TeamCard
+            href="/app/team/working"
+            title="Who's working what"
+            big={d.working.reduce((n, r) => n + r.active, 0)}
+            tone={d.working.some((r) => r.stale) ? "warn" : "ink"}
+            sub={`active properties · ${d.working.reduce((n, r) => n + r.stale, 0)} stale`}
+          >
+            <ul className="divide-y divide-line">
+              {d.working.slice(0, 5).map((r) => (
+                <li key={r.user_id} className="num flex min-h-12 items-center gap-2 px-4 text-sm">
+                  <span className="min-w-0 flex-1 truncate font-semibold">{r.name}</span>
+                  {r.stale > 0 && <span className="font-semibold text-warning">{r.stale} stale</span>}
+                  <span className="w-10 text-right font-display font-bold">{r.active}</span>
+                </li>
+              ))}
+            </ul>
+          </TeamCard>
+        )}
         <TeamCard href="/app/team/pace" title="Pace" big={teamToday} sub="touches today, whole team">
           <ul className="divide-y divide-line">
             {pace.slice(0, 5).map((r) => (

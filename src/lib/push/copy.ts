@@ -3,6 +3,7 @@
  *   due_today_big  "Call Dave back — Greystar Riverside" → /app/accounts/<id>
  *   signal         "Greystar: replied to your proposal"  → /app/accounts/<id>
  *   overdue_group  "3 overdue follow-ups"                 → /app/today
+ *   appointment    "9:00 · Inspection · Greystar"         → /app/appointments/<id>
  * The ladder (what, when, how many) is decided in rank.ts; this only words it.
  */
 import type { PushDecision, RankedItem } from "@/agents/rep-daily-brief/rank";
@@ -43,6 +44,9 @@ export function notificationFor(push: PushDecision, items: Map<string, ItemLite>
       };
     case "signal":
       return { title: clip(push.title, 80), body: clip(push.body, 120), url: itemUrl(first), tag };
+    case "appointment":
+      // Key is "appt:<id>": open the appointment (stops, directions, Log outcome).
+      return { title: clip(push.title, 80), body: clip(push.body, 120), url: `/app/appointments/${push.key.slice(5)}`, tag };
     case "overdue_group": {
       const n = push.itemKeys.length;
       return { title: n === 1 ? "1 overdue follow-up" : `${n} overdue follow-ups`, body: clip(push.body, 120), url: "/app/today", tag };

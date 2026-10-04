@@ -227,10 +227,11 @@ test("flag an active leak: the droplet badge shows on the property row and Today
 
 test("Go stop: big condition toggles flag the building from the field", async ({ page }) => {
   await page.goto("/app/go?city=Austin");
-  const stop = page.getByRole("article");
-  const group = stop.getByRole("group", { name: "Flag a condition" });
-  // Skip ahead to the first stop that has a building.
-  for (let i = 0; i < 15 && (await group.count()) === 0; i++) await tap(page, stop.getByRole("button", { name: "Skip to next stop" }));
+  const stops = page.getByTestId("stop");
+  await expect(stops.first()).toBeVisible();
+  const group = page.getByRole("group", { name: "Flag a condition" });
+  // Open stops until one with a building shows its condition toggles.
+  for (let i = 0; i < (await stops.count()) && (await group.count()) === 0; i++) await tap(page, stops.nth(i).getByRole("button", { name: /^More for / }));
   await expect(group).toBeVisible();
   const ponding = group.getByRole("button", { name: "Ponding" });
   const before = await ponding.getAttribute("aria-pressed");

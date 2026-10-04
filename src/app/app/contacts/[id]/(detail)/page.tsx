@@ -1,4 +1,5 @@
 import { pageBody } from "@/components/status/page-boundary";
+import { PursuitPanel } from "@/components/lists/pursuit-panel";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ctx } from "@/lib/server/ctx";
@@ -6,6 +7,7 @@ import { TOUCH_COLS, withNames } from "@/lib/server/timeline";
 import { daysSince } from "@/lib/domain/book";
 import { ContactDetailView } from "@/components/accounts/contact-detail-view";
 import { loadEmployment } from "@/lib/server/ownership";
+import { RecordSchedule } from "@/components/appointments/record-schedule";
 
 export const metadata: Metadata = { title: "Contact" };
 
@@ -38,6 +40,8 @@ async function ContactPageBody({ params }: { params: Promise<{ id: string }> }) 
 
   return (
     <ContactDetailView
+      pursuit={<PursuitPanel kind="contact" id={id} />}
+      schedule={<RecordSchedule c={c} target={{ contactId: id, accountId: p.account_id }} />}
       d={{
         today,
         c: p,

@@ -13,6 +13,7 @@ import {
   type OpenOpportunity,
   type QueueRow,
   type RankedItem,
+  type TodayAppointment,
 } from "./rank";
 
 export interface TenantInfo {
@@ -45,6 +46,8 @@ export interface RepContext {
   yesterday: Pick<Tables<"rep_day">, "day" | "touches" | "tasks_completed" | "overdue_eod" | "cleared"> | null;
   streak: number;
   signalsSince: string;
+  /** Today's scheduled appointments assigned to the rep (company-local day). */
+  appointments?: TodayAppointment[];
 }
 
 const MAX_LOOKBACK_HOURS = 72;
@@ -79,7 +82,7 @@ export async function loadRepContext(
   const tenant = await loadTenant(db, tenantId);
   const day = forDate ?? localClock(tenant.timezone, now).date;
 
-  const [queueRes, oppRes, profileRes, prevBriefRes, yRes, streakRes] = await Promise.all([
+  const [queueRes, oppRes, profileRes, prevBriefRes, yRes, streakRes, appointments] = await Promise.all([
     db.rpc("rep_queue", { p_tenant: tenantId, p_user: userId, p_day: day }),
     db
       .from("opportunity")
@@ -106,6 +109,7 @@ export async function loadRepContext(
       .eq("day", previousWeekday(day))
       .maybeSingle(),
     db.rpc("rep_streak", { p_tenant: tenantId, p_user: userId }),
+    loadTodayAppointments(db, tenantId, userId, day, tenant.timezone),
   ]);
   const queue = must(queueRes, "rep_queue") ?? [];
   const oppRows = must(oppRes, "load opportunities") ?? [];
@@ -200,7 +204,55 @@ export async function loadRepContext(
     yesterday: yesterday ?? null,
     streak: Number(streak),
     signalsSince: sinceIso,
+    appointments,
   };
+}
+
+/** UTC instant of local midnight starting `day` in `timeZone`. */
+function localMidnightUtc(day: string, timeZone: string): Date {
+  const noon = new Date(`${day}T12:00:00Z`);
+  const c = localClock(timeZone, noon);
+  const offsetMin = (c.hour - 12) * 60 + c.minute; // e.g. Chicago CDT: 07:00 local at 12:00Z → -300
+  return new Date(Date.parse(`${day}T00:00:00Z`) - offsetMin * 60000);
+}
+
+/** Today's scheduled appointments for one rep, with place + building count, in time order. */
+export async function loadTodayAppointments(db: Db, tenantId: string, userId: string, day: string, timeZone: string): Promise<TodayAppointment[]> {
+  const from = localMidnightUtc(day, timeZone);
+  const to = localMidnightUtc(addDays(day, 1), timeZone);
+  const rows =
+    must(
+      await db
+        .from("appointment")
+        .select("id,title,kind,starts_at,all_day,location,account_id,reminder_minutes")
+        .eq("tenant_id", tenantId)
+        .eq("assigned_user_id", userId)
+        .eq("status", "scheduled")
+        .gte("starts_at", from.toISOString())
+        .lt("starts_at", to.toISOString())
+        .order("starts_at"),
+      "load appointments",
+    ) ?? [];
+  if (!rows.length) return [];
+  const ids = rows.map((r) => r.id);
+  const acctIds = [...new Set(rows.map((r) => r.account_id).filter((x): x is string => !!x))];
+  const [links, accts] = await Promise.all([
+    db.from("appointment_property").select("appointment_id").eq("tenant_id", tenantId).in("appointment_id", ids),
+    acctIds.length ? db.from("account").select("id,name").in("id", acctIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+  ]);
+  const names = new Map((accts.data ?? []).map((a) => [a.id, a.name]));
+  return rows.map((r) => ({
+    id: r.id,
+    title: r.title,
+    kind: r.kind,
+    startsAt: r.starts_at,
+    allDay: r.all_day,
+    place: r.location,
+    buildings: (links.data ?? []).filter((l) => l.appointment_id === r.id).length,
+    accountId: r.account_id,
+    accountName: r.account_id ? names.get(r.account_id) ?? null : null,
+    reminderMinutes: r.reminder_minutes,
+  }));
 }
 
 export interface BriefRow {

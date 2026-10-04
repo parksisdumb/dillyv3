@@ -1,4 +1,5 @@
 import { pageBody } from "@/components/status/page-boundary";
+import { PursuitPanel } from "@/components/lists/pursuit-panel";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ctx } from "@/lib/server/ctx";
@@ -6,6 +7,7 @@ import { TOUCH_COLS, withNames } from "@/lib/server/timeline";
 import { loadPartyHistory } from "@/lib/server/ownership";
 import { PropertyDetailView } from "@/components/accounts/property-detail-view";
 import { loadPropertyPhotos } from "@/lib/server/photos";
+import { RecordSchedule } from "@/components/appointments/record-schedule";
 
 export const metadata: Metadata = { title: "Property" };
 
@@ -38,6 +40,8 @@ async function PropertyPageBody({ params }: { params: Promise<{ id: string }> })
 
   return (
     <PropertyDetailView
+      pursuit={<PursuitPanel kind="property" id={p.id} name={name} />}
+      schedule={<RecordSchedule c={c} target={{ propertyId: p.id, accountId: p.account_id }} />}
       d={{
         today,
         year: Number(today.slice(0, 4)),

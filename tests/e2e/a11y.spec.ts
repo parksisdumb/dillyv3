@@ -31,6 +31,10 @@ const SCREENS: Screen[] = [
   { key: "team", who: "tyler", path: fixed("/app/team") },
   { key: "team-pace", who: "tyler", path: fixed("/app/team/pace") },
   { key: "approvals", who: "tyler", path: fixed("/app/approvals") },
+  { key: "properties-lists", who: "colby", path: fixed("/app/properties?tab=lists") },
+  { key: "admin-team", who: "team", path: fixed("/app/admin/team") },
+  { key: "admin-company", who: "parks", path: fixed("/app/admin/company") },
+  { key: "team-working", who: "tyler", path: fixed("/app/team/working") },
 ];
 
 /** `${screen}:${check}` → BUGS.md anchor. */

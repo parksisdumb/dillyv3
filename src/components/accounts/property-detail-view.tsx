@@ -58,7 +58,7 @@ function Fact({ label, value, sub, tone }: { label: string; value: React.ReactNo
   );
 }
 
-export function PropertyDetailView({ d, preview }: { d: PropertyDetailData; preview?: TransferPreview }) {
+export function PropertyDetailView({ d, preview, schedule, pursuit }: { d: PropertyDetailData; preview?: TransferPreview; /** Active toggle + lists (src/components/lists/pursuit-panel.tsx). */ pursuit?: React.ReactNode; /** Appointments entry (Schedule button + booked here). */ schedule?: React.ReactNode }) {
   const { p, today } = d;
   const age = roofAge(p.roof_install_year, d.year);
   const warrantyDays = p.warranty_expires_on ? daysBetween(today, p.warranty_expires_on) : null;
@@ -90,6 +90,8 @@ export function PropertyDetailView({ d, preview }: { d: PropertyDetailData; prev
           </a>
         )}
       </div>
+      {pursuit}
+      {schedule}
 
       <section className="px-4 pt-3" aria-label="Condition">
         <div className="label pb-1.5 text-xs text-muted">Condition · tap to flag</div>

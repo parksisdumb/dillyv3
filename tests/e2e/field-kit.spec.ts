@@ -209,7 +209,7 @@ test.describe("route for the day", () => {
     const C = await mk("Charlie", 30.3);
 
     await page.goto(`/app/go?city=${encodeURIComponent(city)}`);
-    await expect(page.getByRole("article")).toHaveAttribute("aria-label", "Stop 1 of 3");
+    await expect(page.getByTestId("stop")).toHaveCount(3);
     await tap(page, page.getByRole("button", { name: "Route" }));
     const panel = page.getByTestId("route-panel");
     await expect(panel.getByText("Starting from where you are.")).toBeVisible();
@@ -229,9 +229,9 @@ test.describe("route for the day", () => {
     expect(u.searchParams.get("destination")).toBe(A.address);
     await expect(panel.getByTestId("maps-route")).toHaveAttribute("target", "_blank");
 
-    // "Go through stops in this order" re-sequences the session.
+    // "Go through stops in this order" re-sequences the list.
     await tap(page, panel.getByRole("button", { name: "Go through stops in this order" }));
-    await expect(page.getByRole("article").getByRole("heading", { level: 2 })).toHaveText(C.acct.name);
+    await expect(page.getByTestId("stop").first()).toContainText(C.acct.name);
   });
 });
 

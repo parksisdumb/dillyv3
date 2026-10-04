@@ -11,6 +11,7 @@ import { TodayView, type BriefLine } from "@/components/today/today-view";
 import { loadPropertyBadges } from "@/lib/server/ownership";
 import { ConnectEmailPrompt } from "@/components/today/connect-email-prompt";
 import { InstallHint } from "@/components/pwa/install-hint";
+import { ensureOutcomeTasks, loadMyAppointments } from "@/lib/server/appointments";
 
 export const metadata: Metadata = { title: "Today" };
 
@@ -29,8 +30,11 @@ async function TodayPageBody() {
   const monthStartISO = dayStartISO(monthStart(today), tz);
   const f = { tenant: tenantId, user: s.userId };
 
+  // Yesterday's appointments with no outcome become "Log outcome" tasks before the queue is read (idempotent).
+  await safe(() => ensureOutcomeTasks(c), 0, "today:outcome-tasks", f);
   // The queue is the page; everything else is a card that degrades to empty on its own.
-  const [brief, queue, doneToday, firstToday, pointsToday, streak, settings, board] = await Promise.all([
+  const [appointments, brief, queue, doneToday, firstToday, pointsToday, streak, settings, board] = await Promise.all([
+    safe(() => loadMyAppointments(c), { today: [], upcoming: [], overdue: [] }, "today:appointments", f),
     safeData(
       sb.from("brief").select("id,headline,lines,seen_at").eq("tenant_id", tenantId).eq("user_id", s.userId).eq("for_date", today).maybeSingle(),
       null,
@@ -95,8 +99,8 @@ async function TodayPageBody() {
   const taskIds = items.map((i) => i.task_id).filter((x): x is string => !!x);
   const [snoozes, , badges] = await Promise.all([
     taskIds.length
-      ? safeData(sb.from("task").select("id,snooze_count").in("id", taskIds), [] as { id: string; snooze_count: number }[], "today:snoozes", f)
-      : Promise.resolve([] as { id: string; snooze_count: number }[]),
+      ? safeData(sb.from("task").select("id,snooze_count,appointment_id").in("id", taskIds), [] as { id: string; snooze_count: number; appointment_id: string | null }[], "today:snoozes", f)
+      : Promise.resolve([] as { id: string; snooze_count: number; appointment_id: string | null }[]),
     // Marking the brief seen is bookkeeping: it runs alongside, and a failure never blocks the page.
     brief && !brief.seen_at
       ? safeData(sb.from("brief").update({ seen_at: new Date().toISOString() }).eq("id", brief.id), null, "today:brief-seen", f)
@@ -111,6 +115,8 @@ async function TodayPageBody() {
         brief: brief ? { headline: brief.headline, lines: briefLines(brief.lines) } : null,
         items,
         snoozes: Object.fromEntries(snoozes.map((t) => [t.id, t.snooze_count])),
+        appointments,
+        apptTasks: Object.fromEntries(snoozes.filter((t) => t.appointment_id).map((t) => [t.id, t.appointment_id!])),
         cleared: doneToday + firstToday,
         pointsToday: pointsToday.reduce((n, p) => n + (p.points ?? 0), 0),
         streak: streak ?? 0,

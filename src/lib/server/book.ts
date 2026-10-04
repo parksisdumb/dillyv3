@@ -8,6 +8,7 @@ import { ageBandYears, daysSince, isGoingQuiet, type AgeBand } from "@/lib/domai
 import { duplicateGroups } from "@/lib/domain/dupes";
 import { addDays } from "@/lib/format";
 import { propertyBadges, type PropertyBadge } from "@/lib/domain/badges-property";
+import { DAMAGE_FLAGS } from "@/lib/lists/filter";
 
 /** Run an `.in()` query in chunks so long id lists don't blow the URL length. */
 async function inChunks<T>(ids: string[], run: (chunk: string[]) => PromiseLike<{ data: T[] | null }>, size = 100): Promise<T[]> {
@@ -127,9 +128,32 @@ export type PropertySP = {
   noacct?: string;
   incomplete?: string;
   stale?: string;
+  /** "damage" = any leak/damage flag (DAMAGE_FLAGS), "leak" = active leak only. */
+  cond?: string;
+  /** Management company changed in the last 90 days. */
+  newmgmt?: string;
+  /** Storm-type signal at the building or its market in the last 30 days (property_current.storm_kind). */
+  storm?: string;
+  /** No touch ever logged at the building. */
+  never?: string;
   sort?: string;
   /** "lat,lng" from the phone when sort=near (Properties → Nearby). */
   near?: string;
+  /** View-only (never saved in a list): Properties tab (active | lists | all) and multi-select mode. */
+  tab?: string;
+  select?: string;
+};
+
+/** Where loadProperties reads from: the whole book (default), one static list, or a set of buildings. */
+export type PropertySource = {
+  /** Static list: rows come from list_property_current in list order unless a sort is picked. */
+  listId?: string;
+  /** Only these buildings (My active). */
+  ids?: string[];
+  /** Skip the city / market chip counts (lists, working list). */
+  facets?: boolean;
+  /** Rows returned (default 150; `total` still counts every match). */
+  max?: number;
 };
 
 export type PropertyListRow = {
@@ -153,6 +177,10 @@ export type PropertyListRow = {
   badges?: PropertyBadge[];
   /** Straight-line miles from the rep (sort=near). */
   distance_mi?: number | null;
+  state?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  active_flags?: string[];
 };
 
 /** "30.2672,-97.7431" → coordinates, or null. */
@@ -167,12 +195,14 @@ export function parseNear(near: string | undefined): { lat: number; lng: number 
 const NEAR_BOX_DEG = 0.75;
 
 export async function loadProperties(
-  c: Ctx,
+  c: Pick<Ctx, "sb" | "tenantId" | "today"> & { s: { userId: string } },
   sp: PropertySP,
+  src: PropertySource = {},
 ): Promise<{
   rows: PropertyListRow[];
   error: string | null;
   capped: boolean;
+  total?: number;
   cities: { city: string; n: number }[];
   markets: { slug: string; name: string; n: number }[];
 }> {
@@ -180,17 +210,18 @@ export async function loadProperties(
   const year = Number(today.slice(0, 4));
   const term = cleanQuery(sp.q);
   const preset = sp.stale === "1";
-  let q = sb
-    .from("property_current")
-    .select(
-      "id,name,address1,city,account_id,roof_system,roof_install_year,roof_area_sf,warranty_expires_on,current_manager_name,current_owner_name,active_flags,open_service_lines,management_changed_on,ownership_changed_on,storm_kind,storm_at,lat,lng",
-    )
+  const cols =
+    "id,name,address1,city,state,account_id,roof_system,roof_install_year,roof_area_sf,warranty_expires_on,current_manager_name,current_owner_name,active_flags,open_service_lines,management_changed_on,ownership_changed_on,storm_kind,storm_at,lat,lng";
+  const fromBook = () => sb.from("property_current").select(cols);
+  // list_property_current = list_item ⋈ property_current: same columns, so the same filters apply.
+  let q = (src.listId ? (sb.from("list_property_current").select(cols).eq("list_id", src.listId) as unknown as ReturnType<typeof fromBook>) : fromBook())
     .eq("tenant_id", tenantId)
     .is("duplicate_of", null)
     .eq("is_test", false);
+  if (src.ids) q = q.in("id", src.ids.length ? src.ids.slice(0, 300) : ["00000000-0000-0000-0000-000000000000"]);
   let mine: Set<string> | null = null;
   if (sp.scope === "mine") {
-    const ids = await myAccountIds(c);
+    const ids = await myAccountIds(c as Ctx);
     if (ids.length <= 150) q = q.in("account_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
     else mine = new Set(ids);
   }
@@ -219,6 +250,10 @@ export async function loadProperties(
   if (sp.warranty === "1") q = q.gte("warranty_expires_on", today).lte("warranty_expires_on", addDays(today, 365));
   if (sp.noacct === "1") q = q.is("account_id", null);
   if (sp.incomplete === "1") q = q.or("roof_system.is.null,address1.is.null,roof_area_sf.is.null");
+  if (sp.cond === "damage") q = q.overlaps("active_flags", [...DAMAGE_FLAGS]);
+  if (sp.cond === "leak") q = q.contains("active_flags", ["active_leak"]);
+  if (sp.newmgmt === "1") q = q.gte("management_changed_on", addDays(today, -90));
+  if (sp.storm === "1") q = q.not("storm_kind", "is", null);
 
   const here = sp.sort === "near" ? parseNear(sp.near) : null;
   const sort = preset ? "age" : here ? "near" : sp.sort === "near" ? "recent" : sp.sort ?? "recent";
@@ -230,11 +265,18 @@ export async function loadProperties(
       .gte("lng", here.lng - lngBox)
       .lte("lng", here.lng + lngBox);
   }
-  q = sort === "age" ? q.order("roof_install_year", { ascending: true, nullsFirst: false }) : q.order("name", { nullsFirst: false });
+  const listOrder = !!src.listId && !sp.sort && !preset && !here;
+  q =
+    sort === "age"
+      ? q.order("roof_install_year", { ascending: true, nullsFirst: false })
+      : listOrder
+        ? (q.order("list_position" as "name") as typeof q)
+        : q.order("name", { nullsFirst: false });
+  const facets = src.facets !== false;
   const [{ data, error }, cityRows, marketRows] = await Promise.all([
-    q.limit(500),
-    sb.from("property").select("city,market_id").eq("tenant_id", tenantId).is("duplicate_of", null).limit(5000),
-    marketsP,
+    q.limit(src.listId ? 2000 : 500),
+    facets ? sb.from("property").select("city,market_id").eq("tenant_id", tenantId).is("duplicate_of", null).limit(5000) : Promise.resolve({ data: [] as { city: string | null; market_id: string | null }[] }),
+    facets ? marketsP : Promise.resolve([] as { id: string; slug: string; name: string }[]),
   ]);
   if (error) return { rows: [], error: error.message, capped: false, cities: [], markets: [] };
 
@@ -278,7 +320,8 @@ export async function loadProperties(
     const d = daysSince(last.get(r.id), now);
     return d == null || d > 60;
   });
-  if (sort === "recent") {
+  if (sp.never === "1") rows = rows.filter((r) => !last.has(r.id));
+  if (sort === "recent" && !listOrder) {
     rows = [...rows].sort((a, b) => (last.get(b.id) ?? "").localeCompare(last.get(a.id) ?? ""));
   }
   const dist = new Map<string, number>();
@@ -291,8 +334,9 @@ export async function loadProperties(
     cities,
     markets,
     error: null,
-    capped: rows.length > 150,
-    rows: rows.slice(0, 150).map((r) => ({
+    capped: rows.length > (src.max ?? 150),
+    total: rows.length,
+    rows: rows.slice(0, src.max ?? 150).map((r) => ({
       id: r.id,
       name: r.name || r.address1 || "Unnamed property",
       address: r.address1,
@@ -312,6 +356,10 @@ export async function loadProperties(
       owner_name: r.current_owner_name,
       badges: propertyBadges(r, today),
       distance_mi: dist.get(r.id) ?? null,
+      state: r.state,
+      lat: r.lat == null ? null : Number(r.lat),
+      lng: r.lng == null ? null : Number(r.lng),
+      active_flags: r.active_flags ?? [],
     })),
   };
 }

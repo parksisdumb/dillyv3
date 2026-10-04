@@ -45,19 +45,15 @@ test.describe("Colby (rep)", () => {
 test.describe("Tyler (manager)", () => {
   as("tyler");
 
-  test("Settings: the targeting editor and invites are visible to a manager", async ({ page }) => {
+  test("Settings is personal; targeting and invites moved to Admin (owners/admins)", async ({ page }) => {
     await page.goto("/app/settings");
-    await expect(page.getByRole("heading", { name: "Targeting — what FOX Roofing pursues" })).toBeVisible();
-    await expect(page.locator("main li").filter({ hasText: "property mgmt" }).getByText("× 1.20")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Save targeting row" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Invites" })).toBeVisible();
-    await expect(page.locator("main li").filter({ hasText: "ben@foxroofing.co" })).toBeVisible();
-    // Managers can't hand out owner/admin.
-    const roles = await page.getByLabel("Role").locator("option").allTextContents();
-    expect(roles).not.toContain("Owner");
-    expect(roles).not.toContain("Admin");
-    // Team goal is owner/admin only.
-    await expect(page.getByRole("heading", { name: "Team goal (monthly)" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: /^Targeting/ })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Invites" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Password" })).toBeVisible();
+    // A manager's Admin link opens Team, read-only.
+    await page.getByRole("link", { name: /^Admin/ }).click();
+    await page.waitForURL("**/app/admin/team");
+    await expect(page.getByText("view only")).toBeVisible();
   });
 
   test("Me is reachable from the profile menu", async ({ page }) => {
@@ -71,8 +67,17 @@ test.describe("Tyler (manager)", () => {
 test.describe("Parks (admin)", () => {
   as("parks");
 
-  test("an admin sets a monthly team goal and it shows on Today", async ({ page }) => {
+  test("the targeting editor lives in Admin → Company", async ({ page }) => {
     await page.goto("/app/settings");
+    await page.getByRole("link", { name: /^Admin/ }).click();
+    await page.getByRole("navigation", { name: "Admin sections" }).getByRole("link", { name: "Company" }).click();
+    await expect(page.getByRole("heading", { name: "Targeting — what FOX Roofing pursues" })).toBeVisible();
+    await expect(page.locator("main li").filter({ hasText: "property mgmt" }).getByText("× 1.20")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save targeting row" })).toBeVisible();
+  });
+
+  test("an admin sets a monthly team goal and it shows on Today", async ({ page }) => {
+    await page.goto("/app/admin/company");
     await expect(page.getByRole("heading", { name: "Team goal (monthly)" })).toBeVisible();
     await page.getByLabel(/^Label/).fill("Inspections booked");
     await page.getByLabel(/^Target/).fill("20");

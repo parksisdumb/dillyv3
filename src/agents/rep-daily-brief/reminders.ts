@@ -84,6 +84,7 @@ function rankFor(rc: RepContext, extra: Partial<Parameters<typeof rank>[0]> = {}
     settings: rc.tenant.settings,
     doNotPursueAccountIds: rc.doNotPursueAccountIds,
     extras: { newAssignments: rc.newAssignments },
+    appointments: rc.appointments,
     ...extra,
   });
 }
@@ -124,7 +125,8 @@ export async function runRemindersForRep(
               kind: "reminder",
               title: p.title,
               body: p.body,
-              recommended_action: p.kind === "overdue_group" ? "Open Today and clear overdue follow-ups" : "Open Today",
+              recommended_action:
+                p.kind === "overdue_group" ? "Open Today and clear overdue follow-ups" : p.kind === "appointment" ? "Head to the appointment" : "Open Today",
             })),
           ),
           "insert reminder insights",

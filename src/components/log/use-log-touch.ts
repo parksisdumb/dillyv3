@@ -58,7 +58,7 @@ export function useLogTouch() {
     async (input: LogInput, opts: LogOptions = {}): Promise<LogOutcome> => {
       // The key is bound to WHO/WHAT is being logged: moving to another stop or contact always starts fresh,
       // so a dropped response on stop A can never swallow the log for stop B.
-      const target = [input.accountId, input.contactId, input.propertyId, input.opportunityId, input.channel].map((x) => x ?? "").join("|");
+      const target = [input.accountId, input.contactId, input.propertyId, input.opportunityId, input.appointmentId, input.channel].map((x) => x ?? "").join("|");
       if (!key.current || key.current.target !== target) key.current = { key: newUuid(), target, at: new Date().toISOString() };
       const { key: k, at } = key.current;
       const photos = opts.photos ?? [];

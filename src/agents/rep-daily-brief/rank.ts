@@ -96,7 +96,24 @@ export function settingsFromTenant(timeZone: string, raw: Json | null | undefine
   };
 }
 
-export type ItemType = "task" | "reengage" | "first_touch" | "opportunity" | "signal";
+export type ItemType = "task" | "reengage" | "first_touch" | "opportunity" | "signal" | "appointment";
+
+/** A scheduled appointment today (company-local start), for the brief, the queue top and the reminder push. */
+export interface TodayAppointment {
+  id: string;
+  title: string;
+  kind: string;
+  /** ISO start. */
+  startsAt: string;
+  allDay: boolean;
+  /** "1801 S Pleasant Valley Rd, Austin, TX" or the first building's name. */
+  place: string | null;
+  buildings: number;
+  accountId: string | null;
+  accountName: string | null;
+  /** Push this many minutes before the start (0 = no reminder). */
+  reminderMinutes: number;
+}
 
 export interface RankedItem {
   key: string;
@@ -120,6 +137,8 @@ export interface RankedItem {
   snoozePrompt: boolean;
   /** P1/P2 overdue > N business days: goes to the manager, not another push. */
   escalate: boolean;
+  /** type 'appointment' only. */
+  appointmentId?: string | null;
 }
 
 export type OneThingKind = "stalled_proposal" | "hot_reply" | "p1_going_cold" | "overdue_follow_ups" | "top_item";
@@ -139,7 +158,10 @@ export interface DueCounts {
   reengage: number;
   opportunityNextSteps: number;
   routeStops: number | null;
+  /** "9:00 at Greystar Riverside" — the first appointment today. */
   firstMeetingAt: string | null;
+  /** Appointments today. */
+  appointments?: number;
 }
 
 export interface NewCounts {
@@ -165,7 +187,7 @@ export interface SnoozePrompt {
   overdueDays: number;
 }
 
-export type PushKind = "signal" | "due_today_big" | "overdue_group";
+export type PushKind = "signal" | "due_today_big" | "overdue_group" | "appointment";
 
 export interface PushDecision {
   key: string; // dedupe key, stable for the day
@@ -190,6 +212,8 @@ export interface RankInput {
   settings: BriefSettings;
   doNotPursueAccountIds?: string[];
   extras?: { routeStops?: number | null; firstMeetingAt?: string | null; newAssignments?: number };
+  /** Today's scheduled appointments for this rep (any order; ranked by start time). */
+  appointments?: TodayAppointment[];
   /** Current tenant-local time. Needed for `dueNow` on pushes. */
   clock?: LocalClock;
   /** Push keys already delivered today for this rep (cap + dedupe). */
@@ -368,10 +392,40 @@ export function rank(input: RankInput): Ranked {
 
   items.sort((a, b) => b.score - a.score || a.key.localeCompare(b.key));
 
-  const oneThing = pickOneThing(items, input.opportunities, signals, today, st);
+  // 4) Today's appointments lead the day, in time order (they're commitments, not suggestions).
+  const appts = [...(input.appointments ?? [])].sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.id.localeCompare(b.id));
+  const apptItems: RankedItem[] = appts.map((a, i) => {
+    const at = a.allDay ? "All day" : apptClock(a.startsAt, st.timeZone);
+    return {
+      key: `appt:${a.id}`,
+      type: "appointment",
+      title: clip(a.title),
+      why: clip(join([at, a.place, a.buildings > 1 ? `${a.buildings} buildings` : null])),
+      score: 1000 - i,
+      accountId: a.accountId,
+      accountName: a.accountName,
+      contactName: null,
+      phone: null,
+      taskId: null,
+      opportunityId: null,
+      signalId: null,
+      dueOn: today,
+      overdueDays: 0,
+      overdueBusinessDays: 0,
+      icpTier: null,
+      value: null,
+      snoozePrompt: false,
+      escalate: false,
+      appointmentId: a.id,
+    };
+  });
+  items.unshift(...apptItems);
+
+  const oneThing = pickOneThing(items.filter((x) => x.type !== "appointment"), input.opportunities, signals, today, st);
   if (oneThing?.itemKey) {
+    // The one thing leads the work queue, right after today's appointments.
     const i = items.findIndex((x) => x.key === oneThing.itemKey);
-    if (i > 0) items.unshift(...items.splice(i, 1));
+    if (i > apptItems.length) items.splice(apptItems.length, 0, ...items.splice(i, 1));
   }
 
   const tasks = items.filter((i) => i.type === "task");
@@ -383,7 +437,8 @@ export function rank(input: RankInput): Ranked {
     reengage: items.filter((i) => i.type === "reengage").length,
     opportunityNextSteps: items.filter((i) => i.type === "opportunity").length,
     routeStops: input.extras?.routeStops ?? null,
-    firstMeetingAt: input.extras?.firstMeetingAt ?? null,
+    firstMeetingAt: appts.length ? firstMeetingLine(appts, st.timeZone) : input.extras?.firstMeetingAt ?? null,
+    appointments: appts.length,
   };
   const replies = signals.filter(isReplySignal);
   const others = signals.filter((s) => !isReplySignal(s)).sort((a, b) => (b.weight ?? 1) - (a.weight ?? 1));
@@ -416,6 +471,7 @@ export function rank(input: RankInput): Ranked {
     settings: st,
     clock: input.clock,
     sent: input.pushesSentToday ?? [],
+    appointments: appts,
   });
 
   return {
@@ -429,6 +485,22 @@ export function rank(input: RankInput): Ranked {
     suppressedPushes: suppressed,
     isEmpty: items.length === 0,
   };
+}
+
+/** "9:00" / "1:30" in the company's zone (brief copy: short, no AM/PM noise for a working day). */
+export function apptClock(iso: string, timeZone: string): string {
+  const c = localClock(timeZone, new Date(iso));
+  const h12 = c.hour % 12 === 0 ? 12 : c.hour % 12;
+  return `${h12}:${String(c.minute).padStart(2, "0")}${c.hour >= 12 ? " PM" : ""}`;
+}
+
+/** "9:00 at Greystar Riverside" (or "9:00 · Inspection · Greystar" with no place). */
+export function firstMeetingLine(appts: TodayAppointment[], timeZone: string): string {
+  const timed = appts.filter((a) => !a.allDay);
+  const a = timed[0] ?? appts[0];
+  const at = a.allDay ? "today" : apptClock(a.startsAt, timeZone);
+  const where = a.accountName ?? a.place ?? a.title;
+  return clip(`${at} at ${where}`, 80);
 }
 
 /**
@@ -508,7 +580,11 @@ interface PushArgs {
   settings: BriefSettings;
   clock?: LocalClock;
   sent: string[];
+  appointments?: TodayAppointment[];
 }
+
+/** Push keys for appointment reminders; they don't count toward the daily cap. */
+export const isApptPushKey = (k: string) => k.startsWith("appt:");
 
 /**
  * Reminder ladder → push decisions for one rep for one day.
@@ -588,7 +664,7 @@ export function decidePushes(a: PushArgs): { pushes: PushDecision[]; suppressed:
   }
 
   const pushes: PushDecision[] = [];
-  let budget = Math.max(st.maxPushesPerDay - sent.size, 0);
+  let budget = Math.max(st.maxPushesPerDay - [...sent].filter((k) => !isApptPushKey(k)).length, 0);
   const nowMin = a.clock ? a.clock.hour * 60 + a.clock.minute : null;
   for (const c of cands) {
     if (sent.has(c.key)) {
@@ -610,6 +686,39 @@ export function decidePushes(a: PushArgs): { pushes: PushDecision[]; suppressed:
     void _p;
     void _v;
     pushes.push({ ...decision, dueNow });
+  }
+
+  // Appointment reminders: `reminder_minutes` before the start. They bypass the daily cap (a booked inspection is a
+  // commitment, not a nudge) but never quiet hours: a reminder that would land before the window opens moves to the
+  // window start if that's still before the appointment; otherwise (or after the window closes) it's suppressed.
+  for (const ap of a.appointments ?? []) {
+    if (ap.allDay || ap.reminderMinutes <= 0) continue;
+    const key = `appt:${ap.id}`;
+    if (sent.has(key)) {
+      suppressed.push({ key, reason: "already_sent" });
+      continue;
+    }
+    const startC = localClock(st.timeZone, new Date(ap.startsAt));
+    if (startC.date !== a.today) continue;
+    const startMin = startC.hour * 60 + startC.minute;
+    let atMin = startMin - ap.reminderMinutes;
+    if (atMin < start) atMin = start;
+    if (atMin >= startMin || atMin >= end) {
+      suppressed.push({ key, reason: "quiet_hours" });
+      continue;
+    }
+    const at = `${String(Math.floor(atMin / 60)).padStart(2, "0")}:${String(atMin % 60).padStart(2, "0")}`;
+    const dueNow = nowMin !== null && a.clock!.date === a.today && nowMin >= atMin && nowMin < startMin && nowMin >= start && nowMin < end;
+    const item = a.items.find((i) => i.appointmentId === ap.id);
+    pushes.push({
+      key,
+      kind: "appointment",
+      at,
+      dueNow,
+      title: clip(`${apptClock(ap.startsAt, st.timeZone)} · ${ap.title}`, 80),
+      body: clip(join([ap.place, ap.buildings > 1 ? `${ap.buildings} buildings` : null]) || "Coming up", 120),
+      itemKeys: item ? [item.key] : [],
+    });
   }
   return { pushes, suppressed };
 }

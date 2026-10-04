@@ -89,7 +89,7 @@ export function ImportWizard({
   const [overrides, setOverrides] = useState<Overrides>({ accounts: {}, contacts: {}, properties: {}, include: {}, ...initial?.overrides });
   const [loading, startLoading] = useTransition();
   const [progress, setProgress] = useState<{ done: number; total: number; label: string }>({ done: 0, total: 0, label: "" });
-  const [result, setResult] = useState<{ batchId: string; counts: Record<string, number>; error?: string } | null>(null);
+  const [result, setResult] = useState<{ batchId: string; counts: Record<string, number>; error?: string; listId?: string } | null>(null);
   const [undo, setUndo] = useState<{ id: string; report: UndoReport } | null>(null);
   const [recentRows, setRecentRows] = useState(recent);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -230,9 +230,9 @@ export function ImportWizard({
     try {
       const accountIds = await send("accounts", acct, "Companies");
       const contactIds = await send("contacts", contactPayload(plan, accountIds), "Contacts");
-      await send("properties", propertyPayload(plan, accountIds, contactIds, opts.partyRole), "Properties");
-      const fin = await finishImport(batchId, "done", clientCounts);
-      setResult({ batchId, counts: fin.ok ? fin.counts : clientCounts, error: fin.ok ? undefined : fin.error });
+      const propertyIds = await send("properties", propertyPayload(plan, accountIds, contactIds, opts.partyRole), "Properties");
+      const fin = await finishImport(batchId, "done", clientCounts, undefined, Object.values(propertyIds));
+      setResult({ batchId, counts: fin.ok ? fin.counts : clientCounts, error: fin.ok ? undefined : fin.error, listId: fin.ok ? fin.listId : undefined });
     } catch (e) {
       const msg = e instanceof Error ? e.message : "The import stopped.";
       const fin = await finishImport(batchId, "failed", clientCounts, msg).catch(() => null);
@@ -424,7 +424,7 @@ function ResultCard({
   onUndo,
   onAgain,
 }: {
-  result: { batchId: string; counts: Record<string, number>; error?: string };
+  result: { batchId: string; counts: Record<string, number>; error?: string; listId?: string };
   undo: UndoReport | null;
   pending: boolean;
   onUndo: () => void;
@@ -467,6 +467,11 @@ function ResultCard({
         <Link href="/app/accounts?scope=all" className={btn("primary", "md")}>
           View accounts
         </Link>
+        {result.listId && !undo && (
+          <Link href={`/app/lists/${result.listId}`} className={btn("secondary", "md")}>
+            Open the import list
+          </Link>
+        )}
         {result.batchId && !undo && (
           <button type="button" className={btn("danger", "md")} disabled={pending} onClick={onUndo}>
             {pending ? "Undoing…" : "Undo this import"}

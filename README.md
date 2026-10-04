@@ -12,7 +12,7 @@ Spec lives in the "Go To Market System/App" project (`gtm-agent-system/00-ARCHIT
 | Follow-up engine | `20261003000300_activity.sql` | Any touch closes the contact's/account's open follow-ups and schedules the next one from `outcome_rule`. Fixes V2's 0% completion. |
 | Gamification v2 | `point_rule`, `point_event`, `rep_day` | Outcome-weighted points, anti-farming, streak = cleared weekdays, badges. |
 | Ranking | `account_ranked` view | Base score × tenant targeting × account preference; excluded accounts stay visible with a reason. |
-| Screens | `src/app/app/**`, `src/components/**` | 3-tap Log sheet, Today queue + brief, Go (field session + call focus), Accounts, Pipeline, Team, Approvals, Me, Settings. |
+| Screens | `src/app/app/**`, `src/components/**` | 3-tap Log sheet, Today queue + brief, Go ("My day": appointments, working list, route; call through the list), appointments (schedule a building or a series; RUNBOOK §13), Accounts, Pipeline, Team, Approvals, Me, Settings. |
 | Agents | `src/agents/**`, `src/inngest/**` | Runtime (runs, steps, cost, grading, gates) + Rep Daily Brief end to end with a deterministic fallback. Crons: brief fan-out 06:00 local, reminders, close-of-day/streaks, manager escalations. |
 | Migration | `migration/` | V2 → new copy-never-move kit: dump, discover, restore to `legacy`, transform, reconcile, freeze, delta. See `migration/README.md`. |
 | Field kit | `src/lib/offline`, `src/lib/storage`, `src/lib/geo`, `src/agents/card-scan` | Offline log queue (IndexedDB, idempotent replay), roof photos (Supabase Storage), business-card scan (Claude vision), Route for the day + Nearby (Census geocoder), browser error reports. RUNBOOK §12. |

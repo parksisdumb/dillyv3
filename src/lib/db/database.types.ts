@@ -197,6 +197,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      admin_audit: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          actor_user_id: string | null;
+          action: string;
+          target_user_id: string | null;
+          target_email: string | null;
+          before: Json | null;
+          after: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          actor_user_id?: string | null;
+          action: string;
+          target_user_id?: string | null;
+          target_email?: string | null;
+          before?: Json | null;
+          after?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          actor_user_id?: string | null;
+          action?: string;
+          target_user_id?: string | null;
+          target_email?: string | null;
+          before?: Json | null;
+          after?: Json | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       agent: {
         Row: {
           key: string;
@@ -329,6 +365,159 @@ export type Database = {
           output_tokens?: number;
           duration_ms?: number | null;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      appointment: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          kind: string;
+          title: string;
+          starts_at: string;
+          ends_at: string | null;
+          all_day: boolean;
+          location: string | null;
+          notes: string | null;
+          account_id: string | null;
+          opportunity_id: string | null;
+          assigned_user_id: string | null;
+          created_by: string | null;
+          status: string;
+          outcome_touch_id: string | null;
+          booked_touch_id: string | null;
+          reminder_minutes: number;
+          source: string;
+          completed_at: string | null;
+          canceled_at: string | null;
+          cancel_reason: string | null;
+          reschedule_count: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          kind?: string;
+          title: string;
+          starts_at: string;
+          ends_at?: string | null;
+          all_day?: boolean;
+          location?: string | null;
+          notes?: string | null;
+          account_id?: string | null;
+          opportunity_id?: string | null;
+          assigned_user_id?: string | null;
+          created_by?: string | null;
+          status?: string;
+          outcome_touch_id?: string | null;
+          booked_touch_id?: string | null;
+          reminder_minutes?: number;
+          source?: string;
+          completed_at?: string | null;
+          canceled_at?: string | null;
+          cancel_reason?: string | null;
+          reschedule_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          kind?: string;
+          title?: string;
+          starts_at?: string;
+          ends_at?: string | null;
+          all_day?: boolean;
+          location?: string | null;
+          notes?: string | null;
+          account_id?: string | null;
+          opportunity_id?: string | null;
+          assigned_user_id?: string | null;
+          created_by?: string | null;
+          status?: string;
+          outcome_touch_id?: string | null;
+          booked_touch_id?: string | null;
+          reminder_minutes?: number;
+          source?: string;
+          completed_at?: string | null;
+          canceled_at?: string | null;
+          cancel_reason?: string | null;
+          reschedule_count?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      appointment_change: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          appointment_id: string;
+          field: string;
+          old_value: string | null;
+          new_value: string | null;
+          changed_by: string | null;
+          changed_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          appointment_id: string;
+          field: string;
+          old_value?: string | null;
+          new_value?: string | null;
+          changed_by?: string | null;
+          changed_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          appointment_id?: string;
+          field?: string;
+          old_value?: string | null;
+          new_value?: string | null;
+          changed_by?: string | null;
+          changed_at?: string;
+        };
+        Relationships: [];
+      };
+      appointment_contact: {
+        Row: {
+          tenant_id: string;
+          appointment_id: string;
+          contact_id: string;
+        };
+        Insert: {
+          tenant_id: string;
+          appointment_id: string;
+          contact_id: string;
+        };
+        Update: {
+          tenant_id?: string;
+          appointment_id?: string;
+          contact_id?: string;
+        };
+        Relationships: [];
+      };
+      appointment_property: {
+        Row: {
+          tenant_id: string;
+          appointment_id: string;
+          property_id: string;
+          sort: number;
+        };
+        Insert: {
+          tenant_id: string;
+          appointment_id: string;
+          property_id: string;
+          sort?: number;
+        };
+        Update: {
+          tenant_id?: string;
+          appointment_id?: string;
+          property_id?: string;
+          sort?: number;
         };
         Relationships: [];
       };
@@ -715,6 +904,111 @@ export type Database = {
         };
         Relationships: [];
       };
+      list: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          name: string;
+          description: string | null;
+          kind: string;
+          filter: Json;
+          entity: string;
+          owner_user_id: string | null;
+          visibility: string;
+          created_from: string;
+          system_key: string | null;
+          import_batch_id: string | null;
+          archived_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          name: string;
+          description?: string | null;
+          kind?: string;
+          filter?: Json;
+          entity?: string;
+          owner_user_id?: string | null;
+          visibility?: string;
+          created_from?: string;
+          system_key?: string | null;
+          import_batch_id?: string | null;
+          archived_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          name?: string;
+          description?: string | null;
+          kind?: string;
+          filter?: Json;
+          entity?: string;
+          owner_user_id?: string | null;
+          visibility?: string;
+          created_from?: string;
+          system_key?: string | null;
+          import_batch_id?: string | null;
+          archived_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      list_assignment: {
+        Row: {
+          list_id: string;
+          tenant_id: string;
+          user_id: string;
+          assigned_by: string | null;
+          assigned_at: string;
+        };
+        Insert: {
+          list_id: string;
+          tenant_id: string;
+          user_id: string;
+          assigned_by?: string | null;
+          assigned_at?: string;
+        };
+        Update: {
+          list_id?: string;
+          tenant_id?: string;
+          user_id?: string;
+          assigned_by?: string | null;
+          assigned_at?: string;
+        };
+        Relationships: [];
+      };
+      list_item: {
+        Row: {
+          list_id: string;
+          tenant_id: string;
+          property_id: string;
+          added_by: string | null;
+          added_at: string;
+          position: number;
+        };
+        Insert: {
+          list_id: string;
+          tenant_id: string;
+          property_id: string;
+          added_by?: string | null;
+          added_at?: string;
+          position?: number;
+        };
+        Update: {
+          list_id?: string;
+          tenant_id?: string;
+          property_id?: string;
+          added_by?: string | null;
+          added_at?: string;
+          position?: number;
+        };
+        Relationships: [];
+      };
       mail_connection: {
         Row: {
           id: string;
@@ -1028,6 +1322,7 @@ export type Database = {
           account_id: string | null;
           occurred_at: string;
           voided: boolean;
+          appointment_id: string | null;
         };
         Insert: {
           id?: string;
@@ -1041,6 +1336,7 @@ export type Database = {
           account_id?: string | null;
           occurred_at?: string;
           voided?: boolean;
+          appointment_id?: string | null;
         };
         Update: {
           id?: string;
@@ -1054,6 +1350,7 @@ export type Database = {
           account_id?: string | null;
           occurred_at?: string;
           voided?: boolean;
+          appointment_id?: string | null;
         };
         Relationships: [];
       };
@@ -1313,6 +1610,42 @@ export type Database = {
         };
         Relationships: [];
       };
+      property_pursuit: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          property_id: string;
+          user_id: string;
+          status: string;
+          started_at: string;
+          ended_at: string | null;
+          note: string | null;
+          created_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          property_id: string;
+          user_id: string;
+          status?: string;
+          started_at?: string;
+          ended_at?: string | null;
+          note?: string | null;
+          created_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          property_id?: string;
+          user_id?: string;
+          status?: string;
+          started_at?: string;
+          ended_at?: string | null;
+          note?: string | null;
+          created_by?: string | null;
+        };
+        Relationships: [];
+      };
       push_subscription: {
         Row: {
           id: string;
@@ -1507,6 +1840,7 @@ export type Database = {
           created_at: string;
           updated_at: string;
           boost: number;
+          appointment_id: string | null;
         };
         Insert: {
           id?: string;
@@ -1533,6 +1867,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           boost?: number;
+          appointment_id?: string | null;
         };
         Update: {
           id?: string;
@@ -1559,6 +1894,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
           boost?: number;
+          appointment_id?: string | null;
         };
         Relationships: [];
       };
@@ -1690,6 +2026,7 @@ export type Database = {
           voided_by: string | null;
           void_reason: string | null;
           created_at: string;
+          appointment_id: string | null;
         };
         Insert: {
           id?: string;
@@ -1719,6 +2056,7 @@ export type Database = {
           voided_by?: string | null;
           void_reason?: string | null;
           created_at?: string;
+          appointment_id?: string | null;
         };
         Update: {
           id?: string;
@@ -1748,6 +2086,7 @@ export type Database = {
           voided_by?: string | null;
           void_reason?: string | null;
           created_at?: string;
+          appointment_id?: string | null;
         };
         Relationships: [];
       };
@@ -1904,6 +2243,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      list_property_current: {
+        Row: {
+          list_id: string | null;
+          list_position: number | null;
+          list_added_at: string | null;
+          id: string | null;
+          tenant_id: string | null;
+          account_id: string | null;
+          name: string | null;
+          address1: string | null;
+          city: string | null;
+          state: string | null;
+          zip: string | null;
+          normalized_address: string | null;
+          lat: number | null;
+          lng: number | null;
+          market_id: string | null;
+          asset_class: string | null;
+          roof_system: string | null;
+          roof_area_sf: number | null;
+          roof_install_year: number | null;
+          warranty_expires_on: string | null;
+          building_count: number | null;
+          notes: string | null;
+          external_ref: string | null;
+          source: string | null;
+          legacy_table: string | null;
+          legacy_id: string | null;
+          is_test: boolean | null;
+          duplicate_of: string | null;
+          created_by: string | null;
+          created_at: string | null;
+          updated_at: string | null;
+          current_owner_id: string | null;
+          current_owner_name: string | null;
+          owner_since: string | null;
+          current_manager_id: string | null;
+          current_manager_name: string | null;
+          manager_since: string | null;
+          management_changed_on: string | null;
+          ownership_changed_on: string | null;
+          active_flags: string[] | null;
+          open_service_lines: string[] | null;
+          open_opp_count: number | null;
+          open_opp_value: number | null;
+          storm_kind: string | null;
+          storm_at: string | null;
+          storm_headline: string | null;
+        };
+        Relationships: [];
+      };
       my_mail_connection: {
         Row: {
           id: string | null;
@@ -1966,6 +2356,7 @@ export type Database = {
       };
     };
     Functions: {
+      appointment_outcome_tasks: { Args: { p_tenant: string }; Returns: number };
       bulk_update_accounts: { Args: { p_tenant: string; p_accounts: string[]; p_changes: Json }; Returns: unknown };
       claim_invites: { Args: {  }; Returns: number };
       close_rep_day: { Args: { p_tenant: string; p_day: string }; Returns: number };
@@ -1978,13 +2369,17 @@ export type Database = {
       import_properties: { Args: { p_batch: string; p_rows: Json }; Returns: unknown };
       import_undo: { Args: { p_batch: string }; Returns: unknown };
       leaderboard: { Args: { p_tenant: string; p_since: string }; Returns: { user_id: string | null; full_name: string | null; role: string | null; points: number | null; touches: number | null; connects: number | null; in_person: number | null }[] };
+      list_from_import: { Args: { p_batch: string; p_properties?: string[] }; Returns: unknown };
+      log_appointment_outcome: { Args: { p_appointment: string; p_channel: string; p_outcome: string; p_contact?: string; p_met_role?: string; p_notes?: string; p_each_building?: boolean; p_external_id?: string; p_media?: Json; p_occurred_at?: string; p_follow_up_on?: string; p_follow_up_note?: string; p_skip_follow_up?: boolean; p_source?: string; p_opportunity?: string }; Returns: unknown };
       mail_ingest: { Args: { p_tenant: string; p_user: string; p_source: string; p_rows: Json }; Returns: unknown };
       move_contact: { Args: { p_contact: string; p_new_account: string; p_new_title?: string; p_effective?: string }; Returns: unknown };
       rep_queue: { Args: { p_tenant: string; p_user: string; p_day?: string }; Returns: { item_type: string | null; task_id: string | null; account_id: string | null; contact_id: string | null; opportunity_id: string | null; property_id: string | null; title: string | null; reason: string | null; due_on: string | null; overdue_days: number | null; score: number | null; account_name: string | null; contact_name: string | null; phone: string | null; email: string | null; icp_tier: number | null }[] };
       rep_streak: { Args: { p_tenant: string; p_user: string }; Returns: number };
       save_push_subscription: { Args: { p_tenant: string; p_endpoint: string; p_p256dh: string; p_auth: string; p_user_agent?: string }; Returns: unknown };
       set_property_flag: { Args: { p_property: string; p_flag: string; p_on: boolean; p_note?: string }; Returns: boolean };
+      set_pursuit: { Args: { p_properties: string[]; p_status: string; p_note?: string; p_user?: string }; Returns: number };
       team_scorecard: { Args: { p_tenant: string; p_weeks?: number }; Returns: { user_id: string | null; bucket: string | null; period_start: string | null; meetings: number | null; in_person: number | null; first_touches: number | null; fu_due: number | null; fu_done: number | null; paperwork: number | null }[] };
+      tenant_member_activity: { Args: { p_tenant: string }; Returns: { user_id: string | null; last_sign_in_at: string | null; last_touch_at: string | null }[] };
       transfer_properties: { Args: { p_properties: string[]; p_role: string; p_new_account: string; p_effective?: string; p_contacts_with_building?: string[]; p_contacts_with_old_company?: string[]; p_note?: string }; Returns: unknown };
       transfer_property: { Args: { p_property: string; p_role: string; p_new_account: string; p_effective?: string; p_contacts_with_building?: string[]; p_contacts_with_old_company?: string[]; p_note?: string; p_intro_task?: boolean }; Returns: unknown };
     };

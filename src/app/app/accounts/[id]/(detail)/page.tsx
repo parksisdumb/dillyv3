@@ -1,4 +1,5 @@
 import { pageBody } from "@/components/status/page-boundary";
+import { PursuitPanel } from "@/components/lists/pursuit-panel";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ctx } from "@/lib/server/ctx";
@@ -8,6 +9,7 @@ import { AccountDetailView } from "@/components/accounts/account-detail-view";
 import { loadPastProperties, loadPropertyBadges } from "@/lib/server/ownership";
 import { getMembers } from "@/lib/server/members";
 import { shortDate } from "@/lib/format";
+import { RecordSchedule } from "@/components/appointments/record-schedule";
 
 export const metadata: Metadata = { title: "Account" };
 
@@ -98,6 +100,8 @@ async function AccountDetailBody({ params }: { params: Promise<{ id: string }> }
 
   return (
     <AccountDetailView
+      pursuit={<PursuitPanel kind="account" id={id} />}
+      schedule={<RecordSchedule c={c} target={{ accountId: id }} label="Schedule a visit" />}
       d={{
         id,
         today,

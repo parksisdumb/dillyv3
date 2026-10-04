@@ -8,6 +8,8 @@ import type { Channel } from "@/lib/domain/vocab";
 import type { PendingPhoto } from "@/components/photos/photo-picker";
 import type { CardPrefill } from "@/components/log/card-scan";
 import { QuickContactForm } from "@/components/log/quick-contact-form";
+import { ScheduleSheet } from "@/components/appointments/schedule-sheet";
+import type { ScheduleContext } from "@/lib/appointments/types";
 
 export function PreviewLogSheet({ data, contact, picking, channel }: { data: LogContextData; contact: ContactOption | null; picking?: boolean; channel?: Channel | null }) {
   const [open, setOpen] = useState(false);
@@ -64,4 +66,11 @@ export function PreviewLogPhotos({ data, contact }: { data: LogContextData; cont
 /** Add-contact form as if a business card was just read. */
 export function PreviewCardScan({ preview }: { preview: { prefill: CardPrefill; text: string; thumb: string } }) {
   return <QuickContactForm pickAccount source="field" submitLabel="Add contact" onDone={() => {}} preview={preview} />;
+}
+
+/** Schedule sheet open on an account with three of its buildings picked (the "series of apartments" case). */
+export function PreviewScheduleSheet({ initial }: { initial: ScheduleContext }) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => setOpen(true), []);
+  return <ScheduleSheet open={open} onClose={() => setOpen(false)} target={{ accountId: initial.account?.id }} initial={initial} />;
 }

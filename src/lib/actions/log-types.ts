@@ -1,11 +1,14 @@
 // Shapes shared by the Log sheet (client) and its server actions.
 import type { MediaItem } from "@/lib/storage/paths";
+import type { LogAppointment } from "@/lib/appointments/types";
 
 export type LogTarget = {
   accountId?: string | null;
   contactId?: string | null;
   propertyId?: string | null;
   opportunityId?: string | null;
+  /** Logging the outcome of this appointment (Today / Go / the appointment page): completes it. */
+  appointmentId?: string | null;
 };
 
 export type ContactOption = { id: string; name: string; title: string | null; persona_role: string; account_id: string | null; account_name?: string | null };
@@ -18,6 +21,8 @@ export type LogContextData = {
   opportunities: { id: string; name: string }[];
   points: Record<string, number>;
   today: string;
+  /** Set when logging an appointment's outcome: channel defaults from its kind; >1 building offers "log each building". */
+  appointment?: { id: string; title: string; kind: string; channel: string; buildings: number; status: string } | null;
 };
 
 export type LogInput = LogTarget & {
@@ -37,6 +42,10 @@ export type LogInput = LogTarget & {
   occurredAt?: string | null;
   /** The company the log was made in (offline replays after a company switch). Must be one of the rep's. */
   tenantId?: string | null;
+  /** "Log each building": one touch per building of the appointment (else one touch at the account). */
+  eachBuilding?: boolean;
+  /** Booked inspection → "When?": also schedule the appointment (same action; skipping is fine). */
+  appointment?: LogAppointment | null;
 };
 
 export type LogResult =
@@ -48,6 +57,8 @@ export type LogResult =
       closed: number;
       next: { title: string; due_on: string } | null;
       toast: string;
+      /** Set when the log also scheduled an appointment. */
+      appointmentId?: string | null;
     }
   /** retryable: no signal / server unreachable — the offline queue keeps it and replays. Otherwise the rep must fix it. */
   | { ok: false; error: string; retryable?: boolean };

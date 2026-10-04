@@ -327,3 +327,20 @@ export const IconNearMe = (p: P) => (
     <path d="M21 3 3 10.5l7.5 3 3 7.5L21 3Z" />
   </Svg>
 );
+export const IconCopy = (p: P) => (
+  <Svg {...p}>
+    <rect x="9" y="9" width="12" height="12" rx="2" />
+    <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
+  </Svg>
+);
+export const IconKey = (p: P) => (
+  <Svg {...p}>
+    <circle cx="7.5" cy="15.5" r="4.5" />
+    <path d="m10.7 12.3 9.3-9.3M17 6l3 3M14 9l2 2" />
+  </Svg>
+);
+export const IconDownload = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 3v12M7 10l5 5 5-5M4 21h16" />
+  </Svg>
+);

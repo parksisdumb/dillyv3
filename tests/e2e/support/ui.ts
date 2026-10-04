@@ -41,3 +41,20 @@ export const tile = (scope: Page | Locator, label: string) => scope.getByRole("b
 export async function evidence(page: Page, name: string) {
   await page.screenshot({ path: `tests/e2e/bug-shots/${name}.png`, fullPage: true }).catch(() => {});
 }
+
+/** A second browser (same device profile as the running project), signed in as `p` or signed out. */
+export async function newContext(browser: import("@playwright/test").Browser, p?: PersonaKey) {
+  const use = test.info().project.use;
+  return browser.newContext({
+    baseURL: use.baseURL,
+    viewport: use.viewport ?? undefined,
+    isMobile: use.isMobile,
+    hasTouch: use.hasTouch,
+    userAgent: use.userAgent,
+    deviceScaleFactor: use.deviceScaleFactor,
+    locale: "en-US",
+    timezoneId: "America/Chicago",
+    serviceWorkers: "block",
+    storageState: p ? authFile(p) : undefined,
+  });
+}

@@ -45,7 +45,7 @@ export const BRIEF_RUBRIC: Rubric = {
 const SYSTEM = `You write the 06:00 three-line brief for a commercial roofing sales rep. It is read on a phone in a truck.
 Return three fields:
 - one_thing: the single highest-value action today. Build it from ONE_THING in FACTS: name the account or deal and the ask.
-- due: start with "Due:". Use the DUE counts exactly; leave out zeros.
+- due: start with "Due:". Use the DUE counts exactly; leave out zeros. If DUE.appointments > 0, lead with them and the first one's time and place (DUE.firstMeetingAt).
 - new: start with "New:". Use the NEW counts exactly; if all are zero write "New: nothing overnight."
 Rules: plain field language; no greeting, no motivation, no emojis, no exclamation marks; each field 140 characters or fewer;
 use only names, numbers and facts that appear in FACTS — never invent or estimate anything.
@@ -184,6 +184,7 @@ export async function runRepDailyBrief(args: BriefArgs, deps: BriefDeps = {}): P
             settings: rc.tenant.settings,
             doNotPursueAccountIds: rc.doNotPursueAccountIds,
             extras: { newAssignments: rc.newAssignments },
+            appointments: rc.appointments,
           }),
         {
           summarize: (r) => ({

@@ -85,6 +85,18 @@ test.describe("Parks (TSG owner) imports a spreadsheet", () => {
     const { data: overton } = await db.from("property").select("id").eq("tenant_id", tsg).eq("name", "Overton Flats");
     expect(overton).toHaveLength(1);
 
+    // The import made a team list of its buildings ("Import — <file> — <date>"), linked from the result.
+    const { data: made } = await db.from("list").select("id,name,kind,visibility").eq("tenant_id", tsg).eq("created_from", "import").order("created_at", { ascending: false }).limit(1);
+    expect(made?.[0]).toMatchObject({ kind: "static", visibility: "team" });
+    expect(made![0]!.name).toMatch(/^Import — tsg-import-sample\.csv — /);
+    const { count: items } = await db.from("list_item").select("property_id", { count: "exact", head: true }).eq("list_id", made![0]!.id);
+    expect(items).toBeGreaterThan(0);
+    await page.getByRole("link", { name: "Open the import list" }).click();
+    await page.waitForURL(`**/app/lists/${made![0]!.id}`);
+    await expect(page.getByRole("heading", { level: 1, name: made![0]!.name })).toBeVisible();
+    await expect(page.getByRole("list", { name: "List properties" }).locator("li")).toHaveCount(items!);
+    await expect(page.getByTestId("list-progress")).toContainText(`0 of ${items} touched in the last 30 days`);
+
     // New accounts are visible to the team, assigned.
     await page.goto("/app/accounts?scope=all&q=Chickasaw");
     await expect(page.getByRole("link", { name: /Chickasaw Bluff Properties/ })).toBeVisible();
@@ -98,6 +110,9 @@ test.describe("Parks (TSG owner) imports a spreadsheet", () => {
     expect(await importedAccounts(tsg)).toHaveLength(0);
     const { data: still } = await db.from("account").select("id").eq("tenant_id", tsg).eq("name", "Wolf River Commercial");
     expect(still).toHaveLength(1);
+    // Undo empties the import's list, which then leaves everyone's Lists tab.
+    const { data: after } = await db.from("list").select("archived_at").eq("id", made![0]!.id).single();
+    expect(after?.archived_at).not.toBeNull();
   });
 });
 

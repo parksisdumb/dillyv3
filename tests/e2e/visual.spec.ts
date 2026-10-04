@@ -39,6 +39,10 @@ const SHOTS: { key: string; who: PersonaKey | null; path: () => Promise<string>;
   { key: "21-tsg-today", who: "tsgrep", path: async () => "/app/today" },
   { key: "22-property-detail", who: "colby", path: async () => `/app/properties/${await propId("The Monroe")}` },
   { key: "23-transfer-sheet", who: "colby", path: async () => `/app/properties/${await propId("The Monroe")}`, open: "transfer" },
+  { key: "40-properties-lists", who: "colby", path: async () => "/app/properties?tab=lists" },
+  { key: "41-admin-team", who: "team", path: async () => "/app/admin/team" },
+  { key: "42-admin-company", who: "parks", path: async () => "/app/admin/company" },
+  { key: "43-team-working", who: "tyler", path: async () => "/app/team/working" },
 ];
 
 for (const s of SHOTS) {

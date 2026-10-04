@@ -41,6 +41,9 @@ export const getSession = cache(async (): Promise<Session> => {
     redirect(offline ? "/login?offline=1" : "/login");
   }
 
+  // Signed in with a temporary password from an admin: they pick their own before anything else.
+  if (user.app_metadata?.must_change_password) redirect("/welcome/password");
+
   await sb.rpc("claim_invites");
 
   const [{ data: profile }, { data: memberships, error: membershipError }] = await Promise.all([

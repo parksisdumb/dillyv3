@@ -10,15 +10,24 @@ import { CHANNELS, OUTCOMES, PERSONA_ROLES, PRIMARY_CHANNELS, QUICK_OUTCOMES, ty
 import { DEFAULT_POINTS, previewPoints, sitewalkPoints } from "@/lib/domain/points";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
+import { suggestPursuit } from "@/components/lists/pursuit-suggest";
 import { btn, cn, input, labelText } from "@/components/ui/styles";
 import { ContactPicker } from "@/components/log/contact-picker";
-import { IconBuilding, IconChevronDown, IconUser } from "@/components/icons";
+import { IconBuilding, IconCalendar, IconChevronDown, IconUser } from "@/components/icons";
+import { addDaysLocal } from "@/lib/domain/appointments";
+
+/** Default "When?" for a booked inspection: next weekday at 9:00. */
+function nextWeekdayAfter(today: string): string {
+  let d = addDaysLocal(today, 1);
+  while ([0, 6].includes(new Date(`${d}T12:00:00Z`).getUTCDay())) d = addDaysLocal(d, 1);
+  return d;
+}
 
 const MORE_CHANNELS = (Object.keys(CHANNELS) as Channel[]).filter((c) => !PRIMARY_CHANNELS.includes(c));
 
 // Contexts loaded this session, so the sheet still opens in a dead zone for a place the rep already opened it.
 const contextCache = new Map<string, LogContextData>();
-const cacheKey = (t: LogTarget) => [t.accountId, t.contactId, t.propertyId, t.opportunityId].map((x) => x ?? "").join("|");
+const cacheKey = (t: LogTarget) => [t.accountId, t.contactId, t.propertyId, t.opportunityId, t.appointmentId].map((x) => x ?? "").join("|");
 
 /** No signal and never loaded: enough to log on the record the rep is looking at. Names come back with signal. */
 function offlineContext(t: LogTarget): LogContextData | null {
@@ -71,11 +80,16 @@ export function LogSheet({
   const [photos, setPhotos] = useState<PendingPhoto[]>(initial?.photos ?? []);
   const [offline, setOffline] = useState(initial?.offline ?? false);
   const [pending, start] = useTransition();
+  const [eachBuilding, setEachBuilding] = useState(false);
+  // Booked inspection → "When?" (optional): set when the rep taps that outcome.
+  const [when, setWhen] = useState<{ date: string; time: string } | null>(null);
   const logTouch = useLogTouch(); // idempotent + never throws on lost signal
 
   const apply = (t: LogTarget, d: LogContextData, preferContact?: ContactOption | null) => {
     setData(d);
     setLoadError(null);
+    // Logging an appointment's outcome: the channel comes from what was scheduled (the rep can still change it).
+    if (d.appointment) setChannel((ch) => ch ?? (d.appointment!.channel as Channel));
     // On an account, pre-pick its most recent person. With no context the list is "recent people" across
     // accounts — make the rep choose rather than guess.
     const c = preferContact ?? d.contact ?? (t.contactId || !d.account ? null : d.contacts[0] ?? null);
@@ -123,9 +137,16 @@ export function LogSheet({
     }
   };
 
-  const submit = (outcome: Outcome) => {
+  const appt = data?.appointment ?? null;
+
+  const submit = (outcome: Outcome, booking?: { date: string; time: string } | null) => {
     if (!channel || !canLog) return;
     setError(null);
+    // Booked inspection (not already an appointment's outcome): ask "When?" first. Skipping is fine.
+    if (outcome === "scheduled_inspection" && !appt && booking === undefined) {
+      setWhen({ date: data ? nextWeekdayAfter(data.today) : "", time: "09:00" });
+      return;
+    }
     start(async () => {
       const who = contact?.name && contact.name !== "This contact" ? contact.name : account?.name && account.name !== "This account" ? account.name : null;
       const r = await logTouch(
@@ -140,6 +161,8 @@ export function LogSheet({
           metRole: metRole || null,
           followUpOn: followUpOn || null,
           skipFollowUp: skip,
+          ...(appt ? { appointmentId: appt.id, eachBuilding: appt.buildings > 1 && eachBuilding } : {}),
+          ...(booking?.date ? { appointment: { date: booking.date, time: booking.time || null } } : {}),
         },
         {
           photos,
@@ -155,10 +178,11 @@ export function LogSheet({
       onClose();
       // Queued: no refresh (a server round-trip with no signal would bounce to the offline page). It refreshes on send.
       if (!isQueued(r)) router.refresh();
+      if (!isQueued(r)) suggestPursuit(propertyId);
     });
   };
 
-  const title = account ? account.name : "Log a touch";
+  const title = appt ? `Outcome · ${appt.title}` : account ? account.name : "Log a touch";
 
   return (
     <Sheet open={open} onClose={onClose} title={<span className="block truncate">{title}</span>} labelledBy="log-sheet-title">
@@ -171,6 +195,23 @@ export function LogSheet({
             <p className="flex items-center gap-2 rounded-lg border-2 border-warning bg-warning/10 px-3 py-2 text-sm" role="status">
               No signal — this log will be saved on your phone and sent when you have bars.
             </p>
+          )}
+          {appt && (
+            <div className="flex flex-col gap-2 rounded-lg border-2 border-accent bg-accent/8 px-3 py-2" data-testid="log-appointment">
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                <IconCalendar size={18} className="shrink-0 text-accent" />
+                <span className="min-w-0 flex-1">Logging what happened at this appointment{appt.status === "done" ? " (already logged)" : ""}</span>
+              </p>
+              {appt.buildings > 1 && (
+                <label className="flex min-h-12 items-center gap-3">
+                  <input type="checkbox" className="size-6 accent-[var(--accent)]" checked={eachBuilding} onChange={(e) => setEachBuilding(e.target.checked)} />
+                  <span className="text-sm">
+                    <span className="block font-semibold">Log each building ({appt.buildings})</span>
+                    <span className="block text-muted">One entry on every building&apos;s timeline. Off: one entry on the account.</span>
+                  </span>
+                </label>
+              )}
+            </div>
           )}
           {/* Step 1 — who */}
           <section aria-label="Who">
@@ -324,8 +365,33 @@ export function LogSheet({
             </section>
           )}
 
+          {/* Booked inspection → When? */}
+          {when && (
+            <section aria-label="When is the inspection" className="flex flex-col gap-3 rounded-lg border-2 border-accent bg-surface p-3">
+              <div className="font-display text-lg font-bold">When is the inspection?</div>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelText}>Date</span>
+                  <input className={input} type="date" value={when.date} min={data.today} onChange={(e) => setWhen({ ...when, date: e.target.value })} />
+                </label>
+                <label className="flex flex-col gap-1.5">
+                  <span className={labelText}>Time</span>
+                  <input className={input} type="time" step={900} value={when.time} onChange={(e) => setWhen({ ...when, time: e.target.value })} />
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" disabled={pending} className={btn("secondary", "md")} onClick={() => submit("scheduled_inspection", null)}>
+                  Skip — no date yet
+                </button>
+                <button type="button" disabled={pending || !when.date} className={btn("primary", "md")} onClick={() => submit("scheduled_inspection", when)}>
+                  Log + schedule
+                </button>
+              </div>
+            </section>
+          )}
+
           {/* Step 3 — what happened (tap logs) */}
-          {!picking && canLog && channel && (
+          {!picking && canLog && channel && !when && (
             <section aria-label="What happened">
               <div className={cn(labelText, "mb-2")}>3 · What happened — tap to log</div>
               <div className="grid grid-cols-2 gap-2">

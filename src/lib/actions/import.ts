@@ -84,13 +84,28 @@ export async function importChunk(input: z.input<typeof chunkSchema>): Promise<O
   return { ok: true, ids: (data ?? {}) as Record<string, string> };
 }
 
-export async function finishImport(batchId: string, status: "done" | "failed", counts: Record<string, number>, err?: string): Promise<Ok<{ counts: Record<string, number> }> | Err> {
+export async function finishImport(
+  batchId: string,
+  status: "done" | "failed",
+  counts: Record<string, number>,
+  err?: string,
+  /** Every building the import created or linked: they become the "Import — <file> — <date>" list. */
+  propertyIds: string[] = [],
+): Promise<Ok<{ counts: Record<string, number>; listId?: string }> | Err> {
   if (!z.string().uuid().safeParse(batchId).success) return { ok: false, error: "Unknown import." };
   const { sb } = await ctx();
   const { data, error } = await sb.rpc("import_finish", { p_batch: batchId, p_status: status, p_counts: counts as Json, p_error: err });
   if (error) return { ok: false, error: rpcMessage(error, "finish the import") };
+  let listId: string | undefined;
+  if (status === "done") {
+    const pids = z.array(z.string().uuid()).max(20000).safeParse(propertyIds);
+    const made = await sb.rpc("list_from_import", { p_batch: batchId, p_properties: pids.success ? pids.data : [] });
+    // A list is a convenience: the import itself already succeeded.
+    if (made.error) dbMessage(made.error, "make the import list");
+    else listId = String(made.data);
+  }
   revalidatePath("/app", "layout");
-  return { ok: true, counts: (data ?? {}) as Record<string, number> };
+  return { ok: true, counts: (data ?? {}) as Record<string, number>, listId };
 }
 
 export type UndoReport = {
@@ -103,6 +118,12 @@ export async function undoImport(batchId: string): Promise<Ok<{ report: UndoRepo
   const { sb } = await ctx();
   const { data, error } = await sb.rpc("import_undo", { p_batch: batchId });
   if (error) return { ok: false, error: rpcMessage(error, "undo the import") };
+  // The import's list keeps whatever buildings stayed; archive it when nothing did.
+  const { data: lists } = await sb.from("list").select("id").eq("import_batch_id", batchId).is("archived_at", null);
+  for (const l of lists ?? []) {
+    const { count } = await sb.from("list_item").select("property_id", { count: "exact", head: true }).eq("list_id", l.id);
+    if (!count) await sb.from("list").update({ archived_at: new Date().toISOString() }).eq("id", l.id);
+  }
   revalidatePath("/app", "layout");
   return { ok: true, report: data as unknown as UndoReport };
 }

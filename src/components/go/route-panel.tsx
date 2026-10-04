@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { currentPosition } from "@/lib/images/downscale";
-import { formatMiles, hasCoords, legDistances, mapsDirectionsUrls, nearestNeighborOrder, type LatLng, type RouteStop } from "@/lib/geo/route";
+import { formatMiles, hasCoords, legDistances, mapsDirectionsUrls, routeWithFixedFirst, type LatLng, type RouteStop } from "@/lib/geo/route";
 import { btn, cn } from "@/components/ui/styles";
 import { IconDirections, IconNearMe } from "@/components/icons";
 
@@ -10,7 +10,16 @@ import { IconDirections, IconNearMe } from "@/components/icons";
  * first stop, straight-line miles between stops, and Google Maps multi-stop directions (no API key; opens the Maps
  * app on iPhone/Android). More than 10 stops → split into legs.
  */
-export function RoutePanel({ stops, onUseOrder }: { stops: RouteStop[]; onUseOrder: (ids: string[]) => void }) {
+export function RoutePanel({
+  stops,
+  onUseOrder,
+  fixedCount = 0,
+}: {
+  stops: RouteStop[];
+  onUseOrder: (ids: string[]) => void;
+  /** The first N stops are appointments: they keep their time order and go first; the rest are routed after them. */
+  fixedCount?: number;
+}) {
   const [origin, setOrigin] = useState<LatLng | null>(null);
   const [locating, setLocating] = useState(true);
   const [denied, setDenied] = useState(false);
@@ -36,7 +45,7 @@ export function RoutePanel({ stops, onUseOrder }: { stops: RouteStop[]; onUseOrd
     };
   }, []);
 
-  const ordered = useMemo(() => nearestNeighborOrder(stops, origin), [stops, origin]);
+  const ordered = useMemo(() => routeWithFixedFirst(stops.slice(0, fixedCount), stops.slice(fixedCount), origin), [stops, origin, fixedCount]);
   const dist = useMemo(() => legDistances(ordered, origin), [ordered, origin]);
   const legs = useMemo(() => mapsDirectionsUrls(ordered, origin), [ordered, origin]);
   const total = dist.reduce<number>((n, d) => n + (d ?? 0), 0);
@@ -61,7 +70,10 @@ export function RoutePanel({ stops, onUseOrder }: { stops: RouteStop[]; onUseOrd
           <li key={s.id} className="flex min-h-14 items-center gap-3 px-3 py-2">
             <span className="num w-6 shrink-0 font-display text-lg font-bold">{i + 1}</span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-semibold">{s.label}</span>
+              <span className="block truncate font-semibold">
+                {i < fixedCount && <span className="label mr-1.5 text-xs text-accent">Appt</span>}
+                {s.label}
+              </span>
               <span className="block truncate text-sm text-muted">{s.address ?? "No address"}</span>
             </span>
             <span className={cn("num shrink-0 text-right text-sm", hasCoords(s) ? "text-ink" : "label text-xs text-warning")}>

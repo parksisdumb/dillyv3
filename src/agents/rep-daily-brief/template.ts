@@ -21,12 +21,14 @@ function plural(n: number, one: string, many = `${one}s`): string {
 export function dueLine(r: Ranked, streak?: number | null): string {
   const d = r.due;
   const parts: string[] = [];
+  // Appointments lead the Due line: they're fixed in time.
+  if (d.appointments && d.firstMeetingAt) parts.push(`${plural(d.appointments, "appointment")} (first ${d.firstMeetingAt})`);
   if (d.followUps) parts.push(`${plural(d.followUps, "follow-up")}${d.overdue ? ` (${d.overdue} overdue)` : ""}`);
   if (d.opportunityNextSteps) parts.push(plural(d.opportunityNextSteps, "deal next step"));
   if (d.reengage) parts.push(plural(d.reengage, "re-engage"));
   if (d.firstTouches) parts.push(plural(d.firstTouches, "first touch", "first touches"));
   if (d.routeStops) parts.push(plural(d.routeStops, "route stop"));
-  if (d.firstMeetingAt) parts.push(`first meeting ${d.firstMeetingAt}`);
+  if (d.firstMeetingAt && !d.appointments) parts.push(`first meeting ${d.firstMeetingAt}`);
   let line = parts.length ? `Due: ${parts.join(", ")}.` : "Due: nothing scheduled.";
   if (streak && streak > 1) line += ` Streak: ${streak} days.`;
   return clip(line);

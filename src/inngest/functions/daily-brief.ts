@@ -42,6 +42,20 @@ export const dailyBriefFanout = inngest.createFunction(
       return { targets, failed };
     });
 
+    // Yesterday's appointments with no outcome → "Log outcome: …" tasks, before the briefs read the queue.
+    if (targets.length) {
+      await step.run("appointment-outcome-tasks", async () => {
+        const db = await adminDb();
+        let created = 0;
+        for (const t of targets) {
+          const { data, error } = await db.rpc("appointment_outcome_tasks", { p_tenant: t.tenantId });
+          if (error) log.error("inngest:appointment-outcome-tasks:failed", { tenant: t.tenantId, err: error });
+          else created += Number(data ?? 0);
+        }
+        return { created };
+      });
+    }
+
     const events = targets.flatMap((t) =>
       t.userIds.map((userId) =>
         repDailyBriefRequested.create(

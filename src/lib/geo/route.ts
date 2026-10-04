@@ -116,3 +116,14 @@ function buildUrl(origin: string | null, destination: string, waypoints: string[
   q.set("travelmode", "driving");
   return `https://www.google.com/maps/dir/?${q.toString()}`;
 }
+
+/**
+ * My day: appointment stops are fixed (their own time order, first); the working list follows in nearest-neighbour
+ * order starting from the last located appointment stop — or from the rep's location / the first stop when there are
+ * no appointments.
+ */
+export function routeWithFixedFirst<T extends RouteStop>(fixed: T[], rest: T[], origin: LatLng | null): T[] {
+  const lastPinned = [...fixed].reverse().find(hasCoords);
+  const from: LatLng | null = lastPinned ? { lat: lastPinned.lat as number, lng: lastPinned.lng as number } : origin;
+  return [...fixed, ...nearestNeighborOrder(rest, from)];
+}

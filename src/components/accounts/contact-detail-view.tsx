@@ -44,7 +44,7 @@ export type ContactDetailData = {
   oldCompanyBuildings?: number;
 };
 
-export function ContactDetailView({ d, movePreview }: { d: ContactDetailData; movePreview?: MoveContactPreview }) {
+export function ContactDetailView({ d, movePreview, schedule, pursuit }: { d: ContactDetailData; movePreview?: MoveContactPreview; /** Active toggle + lists (src/components/lists/pursuit-panel.tsx). */ pursuit?: React.ReactNode; /** Appointments entry (Schedule button + booked here). */ schedule?: React.ReactNode }) {
   const { c, account, today } = d;
   const phone = c.mobile ?? c.phone;
   return (
@@ -89,6 +89,8 @@ export function ContactDetailView({ d, movePreview }: { d: ContactDetailData; mo
       {(phone || c.email) && (
         <div className="num px-4 pt-2 text-sm text-muted">{[phone, c.email].filter(Boolean).join(" · ")}</div>
       )}
+      {pursuit}
+      {schedule}
       <div className="px-4 pt-3">
         <MoveContact
           contactId={c.id}

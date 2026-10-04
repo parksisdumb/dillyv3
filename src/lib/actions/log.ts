@@ -11,6 +11,8 @@ import { mergePointRules } from "@/lib/domain/points";
 import { localDate, logToast } from "@/lib/format";
 import { pathInTenants, parseMediaPath } from "@/lib/storage/paths";
 import { storageFor } from "@/lib/storage";
+import { writeAppointment } from "@/lib/server/appointments-write";
+import { APPT_KINDS, channelForKind, clockLabel, dayLabel, isApptKind } from "@/lib/domain/appointments";
 import type {
   ContactOption,
   LogContextData,
@@ -39,6 +41,18 @@ export async function loadLogContext(target: LogTarget): Promise<LogContextData>
   const { sb, s, tenantId, today } = await ctx();
   let accountId = target.accountId ?? null;
   let contact: ContactOption | null = null;
+  let appointment: LogContextData["appointment"] = null;
+
+  if (target.appointmentId) {
+    const [{ data: a }, { count }] = await Promise.all([
+      sb.from("appointment").select("id,title,kind,status,account_id").eq("tenant_id", tenantId).eq("id", target.appointmentId).maybeSingle(),
+      sb.from("appointment_property").select("property_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("appointment_id", target.appointmentId),
+    ]);
+    if (a) {
+      appointment = { id: a.id, title: a.title, kind: a.kind, channel: channelForKind(a.kind), buildings: count ?? 0, status: a.status };
+      accountId = accountId ?? a.account_id;
+    }
+  }
 
   if (target.contactId) {
     const { data } = await sb.from("contact").select(CONTACT_COLS).eq("tenant_id", tenantId).eq("id", target.contactId).maybeSingle();
@@ -82,6 +96,7 @@ export async function loadLogContext(target: LogTarget): Promise<LogContextData>
     opportunities: (opps.data ?? []).map((o) => ({ id: o.id, name: o.name })),
     points: mergePointRules(rules.data ?? []),
     today,
+    appointment,
   };
 }
 
@@ -179,8 +194,19 @@ const logSchema = z
     media: z.array(mediaSchema).max(12).optional(),
     occurredAt: z.iso.datetime({ offset: true }).optional().nullable(),
     tenantId: optUuid,
+    appointmentId: optUuid,
+    eachBuilding: z.boolean().optional(),
+    appointment: z
+      .object({
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional().nullable(),
+        durationMinutes: z.number().int().min(5).max(1440).optional().nullable(),
+        kind: z.string().refine(isApptKind).optional().nullable(),
+      })
+      .optional()
+      .nullable(),
   })
-  .refine((v) => v.accountId || v.contactId || v.propertyId, { message: "Pick a contact or an account first." });
+  .refine((v) => v.accountId || v.contactId || v.propertyId || v.appointmentId, { message: "Pick a contact or an account first." });
 
 /**
  * Log a touch. The database does the rest: closes open follow-ups, schedules the next task, awards points.
@@ -234,7 +260,9 @@ async function logTouchInner(input: LogInput): Promise<LogResult> {
   // same key hits 23505 and we return the touch that already landed instead of logging it twice.
   const externalId = v.idempotencyKey ? `idem:${v.idempotencyKey}` : null;
 
-  let { data: touch, error } = await sb
+  let { data: touch, error } = v.appointmentId
+    ? await logAppointmentOutcome(sb, v, { externalId, source, media, occurredAt })
+    : await sb
     .from("touch")
     .insert({
       tenant_id: tenantId,
@@ -270,8 +298,38 @@ async function logTouchInner(input: LogInput): Promise<LogResult> {
     return { ok: false, error: dbMessage(error, "log that"), retryable: isTransient(error) };
   }
 
+  // Booked inspection → "When?": schedule it in the same action (retries reuse the appointment via booked_touch_id).
+  let booked: { id: string; label: string } | null = null;
+  if (!v.appointmentId && v.outcome === "scheduled_inspection" && v.appointment) {
+    const tz = s.tenants.find((t) => t.id === tenantId)?.timezone ?? s.tenant.timezone;
+    const kind = v.appointment.kind && isApptKind(v.appointment.kind) ? v.appointment.kind : "inspection";
+    const ap = await writeAppointment(
+      { sb, s, tenantId, timeZone: tz },
+      {
+        kind,
+        date: v.appointment.date,
+        time: v.appointment.time ?? null,
+        allDay: !v.appointment.time,
+        durationMinutes: v.appointment.durationMinutes ?? APPT_KINDS[kind].minutes,
+        propertyIds: v.propertyId ? [v.propertyId] : [],
+        contactIds: v.contactId ? [v.contactId] : [],
+        accountId: v.accountId ?? null,
+        opportunityId: v.opportunityId ?? null,
+        notes: v.notes || null,
+      },
+      { bookedTouchId: touch.id, source: "log" },
+    );
+    if (ap.ok) booked = { id: ap.id, label: `${dayLabel(v.appointment.date, today)}${v.appointment.time ? ` ${clockLabel(v.appointment.time)}` : ""}` }; else {
+      log.warn("action:logTouch:appointment-failed", { ...(await requestInfo()), tenant: tenantId, user: s.userId, error: ap.error });
+    }
+  }
+
+  // An appointment outcome may be several touches (one per building): read back all of them.
+  const touchIds = v.appointmentId
+    ? ((await sb.from("touch").select("id").eq("tenant_id", tenantId).eq("appointment_id", v.appointmentId)).data ?? []).map((t) => t.id)
+    : [touch.id];
   const [awards, closed, next] = await Promise.all([
-    sb.from("point_event").select("event,points").eq("tenant_id", tenantId).eq("touch_id", touch.id),
+    sb.from("point_event").select("event,points").eq("tenant_id", tenantId).in("touch_id", touchIds.length ? touchIds : [touch.id]).eq("voided", false),
     sb.from("task").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("completed_by_touch_id", touch.id),
     sb.from("task").select("title,due_on").eq("tenant_id", tenantId).eq("created_from_touch_id", touch.id).limit(1).maybeSingle(),
   ]);
@@ -286,8 +344,37 @@ async function logTouchInner(input: LogInput): Promise<LogResult> {
     toast: "",
   };
   result.toast = logToast({ points: pts, closed: result.closed, next: result.next, today });
+  if (booked) result.toast += ` · Inspection set ${booked.label}`;
+  if (v.appointmentId && touchIds.length > 1) result.toast += ` · ${touchIds.length} buildings logged`;
   revalidatePath("/app", "layout");
-  return result;
+  return { ...result, appointmentId: booked?.id ?? v.appointmentId ?? null };
+}
+
+/** The outcome of an appointment: public.log_appointment_outcome does the touches + completion in one transaction. */
+async function logAppointmentOutcome(
+  sb: Awaited<ReturnType<typeof ctx>>["sb"],
+  v: z.infer<typeof logSchema>,
+  t: { externalId: string | null; source: string; media: z.infer<typeof mediaSchema>[]; occurredAt: string | null },
+): Promise<{ data: { id: string } | null; error: { code?: string; message: string } | null }> {
+  const { data, error } = await sb.rpc("log_appointment_outcome", {
+    p_appointment: v.appointmentId!,
+    p_channel: v.channel,
+    p_outcome: v.outcome,
+    p_contact: (v.contactId ?? null) as unknown as string,
+    p_met_role: (v.metRole ?? null) as unknown as string,
+    p_notes: (v.notes || null) as unknown as string,
+    p_each_building: !!v.eachBuilding,
+    p_external_id: (t.externalId ?? null) as unknown as string,
+    p_media: t.media.map((m) => ({ ...m, caption: m.caption || null })),
+    p_occurred_at: (t.occurredAt ?? null) as unknown as string,
+    p_follow_up_on: (v.followUpOn ?? null) as unknown as string,
+    p_follow_up_note: (v.followUpNote || null) as unknown as string,
+    p_skip_follow_up: v.skipFollowUp ?? false,
+    p_source: t.source,
+    p_opportunity: (v.opportunityId ?? null) as unknown as string,
+  });
+  if (error) return { data: null, error: error.code === "P0002" ? { code: "PGRST116", message: error.message } : error };
+  return { data: data ? { id: String(data) } : null, error: null };
 }
 
 // --- Contacts created from the Log sheet / Go: duplicate check first ------------------------------------

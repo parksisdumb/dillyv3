@@ -6,10 +6,15 @@ import { BookTabs } from "@/components/accounts/book-tabs";
 import { FilterChip, hrefWith } from "@/components/accounts/filter-chip";
 import { Chip, Empty, ErrorNote } from "@/components/ui/bits";
 import { btn, cn, input } from "@/components/ui/styles";
-import { IconChevronRight, IconPlus, IconSearch } from "@/components/icons";
+import { IconPlus, IconSearch } from "@/components/icons";
 import { PropertyBadges } from "@/components/accounts/property-badges";
 import { NearbySort } from "@/components/accounts/nearby-sort";
 import { formatMiles } from "@/lib/geo/route";
+import { PropertyTabs, type PropertyTab } from "@/components/lists/property-tabs";
+import { PursuitToggle } from "@/components/lists/pursuit-toggle";
+import { BulkBar, BulkCheck } from "@/components/lists/bulk-bar";
+import { SaveAsListButton, type ListOption } from "@/components/lists/list-sheets";
+import { cleanFilter, describeFilter, isEmptyFilter } from "@/lib/lists/filter";
 
 /** "4d ago", "3mo ago", "Never touched" — the list row's freshness, kept short so badges get the room. */
 function quietShort(days: number | null): string {
@@ -22,8 +27,12 @@ function quietShort(days: number | null): string {
 
 const ROOF_SYSTEMS = ["TPO", "EPDM", "PVC", "Mod-bit", "BUR", "Metal", "Shingle", "Coating"];
 const ASSET_CLASSES = ["Multifamily", "Office", "Industrial", "Retail", "K-12", "Healthcare", "Hospitality", "Government"];
-const TOGGLES: { k: keyof PropertySP; label: string }[] = [
+const TOGGLES: { k: keyof PropertySP; label: string; on?: string }[] = [
+  { k: "cond", label: "Leaks & damage", on: "damage" },
   { k: "warranty", label: "Warranty ends < 12 mo" },
+  { k: "newmgmt", label: "New mgmt 90d" },
+  { k: "storm", label: "Storm hit 30d" },
+  { k: "never", label: "Never touched" },
   { k: "opp", label: "Open opportunity" },
   { k: "noacct", label: "No account" },
   { k: "incomplete", label: "Missing data" },
@@ -38,7 +47,22 @@ export function PropertiesListView({
   error,
   capped,
   headerExtra,
+  tab = "all",
+  activeCount = 0,
+  activeIds,
+  lists = [],
+  isManager = false,
+  listsPanel,
 }: {
+  tab?: PropertyTab;
+  activeCount?: number;
+  /** Buildings I'm actively pursuing (row toggles). */
+  activeIds?: Set<string>;
+  /** Static lists I can add to (multi-select → Add to list). */
+  lists?: ListOption[];
+  isManager?: boolean;
+  /** Lists tab body (rendered instead of rows). */
+  listsPanel?: React.ReactNode;
   sp: PropertySP;
   rows: PropertyListRow[];
   cities: { city: string; n: number }[];
@@ -53,12 +77,18 @@ export function PropertiesListView({
   const preset = sp.stale === "1";
   const sort = preset ? "age" : sp.sort ?? "recent";
   const scope = sp.scope === "mine" ? "mine" : "all";
+  const selecting = sp.select === "1";
   return (
     <div>
       <BookTabs active="properties" />
+      <PropertyTabs tab={tab} activeCount={activeCount} />
+      {tab === "lists" ? (
+        listsPanel
+      ) : (
+      <>
       {headerExtra}
       <form method="get" action={base} className="mt-3 flex flex-col gap-2 px-4">
-        {Object.entries(sp).map(([k, v]) => (!["q", "asset", "roof", "age"].includes(k) && v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
+        {Object.entries(sp).map(([k, v]) => (!["q", "asset", "roof", "age", "select"].includes(k) && v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
         <div className="flex gap-2">
           <label className="relative block min-w-0 flex-1">
             <span className="sr-only">Search properties</span>
@@ -101,14 +131,14 @@ export function PropertiesListView({
       </form>
 
       <div className="mt-3 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Quick filters">
-        <FilterChip tone="accent" href={preset ? hrefWith(base, sp, { stale: undefined }) : hrefWith(base, {}, { stale: "1", scope: sp.scope })} active={preset}>
+        <FilterChip tone="accent" href={preset ? hrefWith(base, sp, { stale: undefined }) : hrefWith(base, {}, { stale: "1", scope: sp.scope, tab: sp.tab })} active={preset}>
           Oldest roofs · quiet 60d
         </FilterChip>
         <FilterChip href={hrefWith(base, sp, { scope: scope === "mine" ? undefined : "mine" })} active={scope === "mine"}>
           Mine
         </FilterChip>
         {TOGGLES.map((t) => (
-          <FilterChip key={t.k} href={hrefWith(base, sp, { [t.k]: sp[t.k] === "1" ? undefined : "1" })} active={sp[t.k] === "1"}>
+          <FilterChip key={t.k} href={hrefWith(base, sp, { [t.k]: sp[t.k] === (t.on ?? "1") ? undefined : t.on ?? "1" })} active={sp[t.k] === (t.on ?? "1")}>
             {t.label}
           </FilterChip>
         ))}
@@ -140,7 +170,7 @@ export function PropertiesListView({
       <div className="flex items-center justify-between px-4 pt-1 text-sm text-muted">
         <span className="num">
           {rows.length}
-          {capped ? "+" : ""} properties
+          {capped ? "+" : ""} {tab === "active" ? "active" : "properties"}
         </span>
         {!preset && (
           <span>
@@ -165,16 +195,37 @@ export function PropertiesListView({
         )}
       </div>
 
+      <div className="flex flex-wrap items-center justify-end gap-2 px-4 pb-2">
+        {tab === "all" && !isEmptyFilter(cleanFilter(sp)) && (
+          <SaveAsListButton filter={cleanFilter(sp)} summary={describeFilter(cleanFilter(sp), markets)} isManager={isManager} count={rows.length} />
+        )}
+        {rows.length > 0 &&
+          (selecting ? (
+            <Link href={hrefWith(base, sp, { select: undefined })} className={btn("secondary", "sm")}>
+              Done
+            </Link>
+          ) : (
+            <Link href={hrefWith(base, sp, { select: "1" })} className={btn("secondary", "sm")}>
+              Select
+            </Link>
+          ))}
+      </div>
+
       {error && <ErrorNote>Couldn&apos;t load properties: {error}</ErrorNote>}
-      {!error && rows.length === 0 && <Empty title="No properties match">Clear a filter, or add one with + Property.</Empty>}
+      {!error && rows.length === 0 &&
+        (tab === "active" ? (
+          <Empty title="Nothing active yet">Tap Active on a property you&apos;re working — it leads your Go list until you drop it.</Empty>
+        ) : (
+          <Empty title="No properties match">Clear a filter, or add one with + Property.</Empty>
+        ))}
       {rows.length > 0 && (
         <ul className="divide-y divide-line border-y border-line bg-surface">
           {rows.map((r) => {
             const age = roofAge(r.roof_install_year, year);
             const wDays = r.warranty_expires_on ? daysBetween(today, r.warranty_expires_on) : null;
             return (
-              <li key={r.id}>
-                <Link href={`/app/properties/${r.id}`} className="flex items-start gap-3 px-4 py-3 hover:bg-surface-2">
+              <li key={r.id} className="flex items-start gap-1 pr-3 hover:bg-surface-2">
+                <Link href={`/app/properties/${r.id}`} className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <span className="min-w-0 flex-1 truncate font-display text-base font-bold">{r.name}</span>
@@ -200,14 +251,19 @@ export function PropertiesListView({
                       )}
                     </div>
                   </div>
-                  <IconChevronRight size={20} className="mt-1 shrink-0 text-muted" />
                 </Link>
+                <div className="pt-2">
+                  {selecting ? <BulkCheck id={r.id} name={r.name} /> : <PursuitToggle propertyId={r.id} name={r.name} active={!!activeIds?.has(r.id)} compact />}
+                </div>
               </li>
             );
           })}
         </ul>
       )}
       {capped && <p className="px-4 py-3 text-sm text-muted">Showing 150. Search or filter to narrow.</p>}
+      {selecting && rows.length > 0 && <BulkBar lists={lists} doneHref={hrefWith(base, sp, { select: undefined })} />}
+      </>
+      )}
     </div>
   );
 }

@@ -51,7 +51,7 @@ export type AccountDetailData = {
   assign?: { ownerId: string | null; members: TeamMember[]; lastChange: string | null };
 };
 
-export function AccountDetailView({ d, movePreview }: { d: AccountDetailData; movePreview?: MovePreview }) {
+export function AccountDetailView({ d, movePreview, schedule, pursuit }: { d: AccountDetailData; movePreview?: MovePreview; /** Active toggle + lists (src/components/lists/pursuit-panel.tsx). */ pursuit?: React.ReactNode; /** Appointments entry (Schedule button + booked here). */ schedule?: React.ReactNode }) {
   const { id, today, a, task, opps, props, contacts, timeline, ownerName } = d;
   const grouped = PERSONA_ORDER.map((role) => ({ role, people: contacts.filter((p) => p.persona_role === role) })).filter((g) => g.people.length);
   const sunk = a.relationship_state === "excluded" || a.relationship_state === "do_not_pursue";
@@ -96,6 +96,8 @@ export function AccountDetailView({ d, movePreview }: { d: AccountDetailData; mo
           </a>
         )}
       </div>
+      {pursuit}
+      {schedule}
 
       <div className="mt-2 flex items-center gap-2 px-4 text-sm text-muted">
         <span className="min-w-0 flex-1">

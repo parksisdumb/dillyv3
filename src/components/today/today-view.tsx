@@ -5,6 +5,7 @@ import { btn, cn } from "@/components/ui/styles";
 import { QueueItem, type QueueRow } from "@/components/today/queue-item";
 import { IconGo, IconStreak } from "@/components/icons";
 import type { PropertyBadge } from "@/lib/domain/badges-property";
+import { TodayAppointments, type MyAppointments } from "@/components/appointments/today-appointments";
 
 export type BriefLine = { kind?: string; text?: string };
 
@@ -19,6 +20,10 @@ export type TodayData = {
   goal: { label: string; target: number; count: number } | null;
   leaders: { user_id: string | null; full_name: string | null; touches: number | null; points: number | null }[];
   meId: string;
+  /** Today's / upcoming appointments (top of the page). */
+  appointments?: MyAppointments;
+  /** taskId → appointmentId for "Log outcome" tasks: their Log button logs the appointment's outcome. */
+  apptTasks?: Record<string, string>;
   /** Badges by property id, for queue items that reference a building. */
   badges?: Record<string, PropertyBadge[]>;
 };
@@ -46,6 +51,7 @@ export function TodayView({ d }: { d: TodayData }) {
   return (
     <div>
       <h1 className="sr-only">Today</h1>
+      {d.appointments && <TodayAppointments d={d.appointments} />}
       {d.error && <ErrorNote>Couldn&apos;t load your queue: {d.error}</ErrorNote>}
 
       {d.brief && (
@@ -113,7 +119,7 @@ export function TodayView({ d }: { d: TodayData }) {
               </SectionTitle>
               <ul className="divide-y divide-line border-y border-line bg-surface">
                 {g.rows.map((it, i) => (
-                  <QueueItem key={`${it.item_type}-${it.task_id ?? it.account_id}-${i}`} item={it} snoozeCount={it.task_id ? d.snoozes[it.task_id] ?? 0 : 0} badges={it.property_id ? d.badges?.[it.property_id] : undefined} />
+                  <QueueItem key={`${it.item_type}-${it.task_id ?? it.account_id}-${i}`} item={it} appointmentId={it.task_id ? d.apptTasks?.[it.task_id] : undefined} snoozeCount={it.task_id ? d.snoozes[it.task_id] ?? 0 : 0} badges={it.property_id ? d.badges?.[it.property_id] : undefined} />
                 ))}
               </ul>
             </section>

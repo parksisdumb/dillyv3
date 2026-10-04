@@ -28,7 +28,7 @@ export type QueueRow = {
 
 const iconBtn = "inline-flex size-12 shrink-0 items-center justify-center rounded-lg border-2 border-line bg-surface hover:border-ink";
 
-export function QueueItem({ item, snoozeCount, badges }: { item: QueueRow; snoozeCount: number; badges?: PropertyBadge[] }) {
+export function QueueItem({ item, snoozeCount, badges, appointmentId }: { item: QueueRow; snoozeCount: number; badges?: PropertyBadge[]; /** A "Log outcome" task: logging completes this appointment. */ appointmentId?: string }) {
   const late = item.overdue_days ?? 0;
   const head = (
     <div className="flex items-start gap-3">
@@ -61,7 +61,8 @@ export function QueueItem({ item, snoozeCount, badges }: { item: QueueRow; snooz
       )}
       <div className="mt-3 flex items-center gap-2">
         <LogButton
-          target={{ accountId: item.account_id, contactId: item.contact_id, propertyId: item.property_id, opportunityId: item.opportunity_id }}
+          target={{ accountId: item.account_id, contactId: item.contact_id, propertyId: item.property_id, opportunityId: item.opportunity_id, appointmentId: appointmentId ?? null }}
+          label={appointmentId ? "Log outcome" : undefined}
           size="md"
           variant="accent-outline"
           className="min-w-28"

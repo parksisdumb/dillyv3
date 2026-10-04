@@ -7,7 +7,7 @@ import { inngest } from "../client";
 import { loadAllTenants, perTenant, tenantsWhere } from "../tenants";
 
 /**
- * Every 30 min: for tenants inside their push window (07:00–19:00 local, weekdays unless enabled),
+ * Every 15 min (appointment reminders land within 15 min of `reminder_minutes`): for tenants inside their push window (07:00–19:00 local, weekdays unless enabled),
  * apply the reminder ladder per rep and record the pushes due now as `insight` rows (kind 'reminder').
  * Delivery: Web Push to the rep's devices when VAPID env is set (src/lib/push/sender.ts), else record-only.
  *
@@ -18,7 +18,7 @@ export const reminders = inngest.createFunction(
   {
     id: "reminders",
     name: "Rep reminders (push ladder)",
-    triggers: [cron("*/30 * * * *")],
+    triggers: [cron("*/15 * * * *")],
     retries: 1,
     singleton: { mode: "skip" },
   },

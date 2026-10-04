@@ -8,6 +8,7 @@ import type { QueuedLog } from "@/lib/offline/types";
 import { ClientErrorContext } from "@/components/observability/client-errors";
 import { NavProgress } from "@/components/shell/nav-progress";
 import { Suspense } from "react";
+import { PursuitSuggest } from "@/components/lists/pursuit-suggest";
 
 type T = { slug: string; name: string; role: string };
 
@@ -48,6 +49,7 @@ export function AppShell({
           <TopBar tenant={tenant} tenants={tenants} fullName={fullName} email={email} isManager={isManager} />
           <main className="mx-auto w-full max-w-3xl pb-[calc(env(safe-area-inset-bottom)+168px)]">{children}</main>
           <FloatingLogButton />
+          <PursuitSuggest />
           <BottomNav isManager={isManager} activeHref={activeHref} />
         </LogProvider>
       </OfflineQueueProvider>

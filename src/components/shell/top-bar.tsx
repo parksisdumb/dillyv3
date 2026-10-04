@@ -4,7 +4,7 @@ import { useState } from "react";
 import { signOut, switchTenant } from "@/lib/actions/auth";
 import { Sheet } from "@/components/ui/sheet";
 import { btn, cn } from "@/components/ui/styles";
-import { IconCheck, IconChevronDown, IconLogout, IconSearch, IconSettings, IconUser, IconTrophy } from "@/components/icons";
+import { IconCheck, IconChevronDown, IconLogout, IconSearch, IconSettings, IconUser, IconTrophy, IconKey } from "@/components/icons";
 import { initials } from "@/lib/format";
 import { QueuePill } from "@/components/offline/queue-pill";
 
@@ -78,6 +78,13 @@ export function TopBar({
             <li>
               <Link href="/app/approvals" onClick={() => setMenu(false)} className="flex min-h-14 items-center gap-3 px-4 hover:bg-surface-2">
                 <IconCheck size={20} /> Approvals
+              </Link>
+            </li>
+          )}
+          {(tenant.role === "owner" || tenant.role === "admin") && (
+            <li>
+              <Link href="/app/admin" onClick={() => setMenu(false)} className="flex min-h-14 items-center gap-3 px-4 hover:bg-surface-2">
+                <IconKey size={20} /> Admin
               </Link>
             </li>
           )}

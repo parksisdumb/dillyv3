@@ -9,6 +9,7 @@ import { phoneDigitsClause } from "@/lib/domain/phone-search";
 import { ageBandYears, type AgeBand } from "@/lib/domain/book";
 import { propertyBadges } from "@/lib/domain/badges-property";
 import { addDays, dayStartISO } from "@/lib/format";
+import { DAMAGE_FLAGS } from "@/lib/lists/filter";
 
 export const EXPORT_KINDS = ["accounts", "contacts", "properties", "opportunities", "touches"] as const;
 export type ExportKind = (typeof EXPORT_KINDS)[number];
@@ -194,6 +195,10 @@ export async function buildExport(c: Ctx, kind: ExportKind, sp: Sp): Promise<Exp
             if (sp.noacct === "1") x = x.is("account_id", null);
             if (sp.incomplete === "1") x = x.or("roof_system.is.null,address1.is.null,roof_area_sf.is.null");
             if (sp.opp === "1") x = x.gt("open_opp_count", 0);
+            if (sp.cond === "damage") x = x.overlaps("active_flags", [...DAMAGE_FLAGS]);
+            if (sp.cond === "leak") x = x.contains("active_flags", ["active_leak"]);
+            if (sp.newmgmt === "1") x = x.gte("management_changed_on", addDays(today, -90));
+            if (sp.storm === "1") x = x.not("storm_kind", "is", null);
             return x.order("name", { nullsFirst: false }).order("id").range(f, t);
           })) {
             const kept = rows.filter((r) => r.id && (!mine || mine.size <= 150 || (r.account_id && mine.has(r.account_id))));
