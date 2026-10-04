@@ -66,6 +66,7 @@ export function ContactPicker({
         />
       </label>
 
+      {!accountId && !showSearch && local.length > 0 && <div className="label text-xs text-muted">Recent</div>}
       <ul className="divide-y divide-line overflow-hidden rounded-lg border-2 border-line">
         {allowAccountLevel && !showSearch && (
           <li>
@@ -82,7 +83,7 @@ export function ContactPicker({
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold">{c.name}</span>
                 <span className="block truncate text-sm text-muted">
-                  {[c.title, PERSONA_ROLES[c.persona_role as PersonaRole]].filter((x) => x && x !== "Unknown").join(" · ") || " "}
+                  {[accountId ? null : c.account_name, c.title, PERSONA_ROLES[c.persona_role as PersonaRole]].filter((x) => x && x !== "Unknown").join(" · ") || " "}
                 </span>
               </span>
             </button>

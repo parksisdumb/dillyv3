@@ -29,9 +29,9 @@ if (!inPlace) {
   const nm = path.join(APP, "node_modules");
   if (!fs.existsSync(nm)) fs.symlinkSync(path.join(ROOT, "node_modules"), nm, "dir");
 
-  // Type errors are `npm run typecheck`'s job; the e2e build only needs the app to compile, so a half-finished type
-  // change elsewhere in the tree doesn't block behavioural testing. E2E_TYPECHECK=1 restores the strict build.
-  if (process.env.E2E_TYPECHECK !== "1") {
+  // The e2e build is the strict production build (type errors fail it). E2E_TYPECHECK=0 skips type checking when
+  // you need behavioural results from a tree with a half-finished type change.
+  if (process.env.E2E_TYPECHECK === "0") {
     fs.renameSync(path.join(APP, "next.config.ts"), path.join(APP, "next.config.base.ts"));
     fs.writeFileSync(
       path.join(APP, "next.config.ts"),

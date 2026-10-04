@@ -1,6 +1,6 @@
 /**
  * Accessibility smoke on every main screen: one h1, every button/link has an accessible name, no sideways scroll at
- * phone width, and primary tap targets ≥ 44×44 px. Known app bugs are listed in KNOWN (see BUGS.md) and run as fixme.
+ * phone width, and primary tap targets ≥ 44×44 px. A known app bug can be parked in KNOWN (see BUGS.md) to run as fixme.
  */
 import type { Page } from "@playwright/test";
 import type { PersonaKey } from "../../scripts/e2e/seed";
@@ -34,12 +34,7 @@ const SCREENS: Screen[] = [
 ];
 
 /** `${screen}:${check}` → BUGS.md anchor. */
-const KNOWN: Record<string, string> = {
-  "today:exactly one h1": "BUGS.md#b5",
-  "accounts:exactly one h1": "BUGS.md#b5",
-  "contacts:exactly one h1": "BUGS.md#b5",
-  "properties:exactly one h1": "BUGS.md#b5",
-};
+const KNOWN: Record<string, string> = {};
 
 async function open(page: Page, s: Screen) {
   const res = await page.goto(await s.path());

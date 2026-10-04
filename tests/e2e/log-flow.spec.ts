@@ -149,3 +149,22 @@ test("Log button with no context: pick a person by search, then log", async ({ p
   await tap(page, tile(s, "Left voicemail"));
   await expect(toasts(page)).toContainText(/next: Call .+ back/);
 });
+
+test("Log button with no context offers recent people: one tap picks the person", async ({ page }) => {
+  const { person, task } = await followUpFixture();
+  await page.goto("/app/today");
+  await tap(page, queueRow(page, task.title).getByRole("button", { name: "Log", exact: true }));
+  await tap(page, tile(sheet(page), "Call"));
+  await tap(page, tile(sheet(page), "Connected"));
+  await expect(toasts(page)).toContainText(/follow-up closed/);
+  await expect(sheet(page)).toHaveCount(0);
+
+  await tap(page, page.getByRole("button", { name: "Log a touch" }));
+  const s = sheet(page);
+  await expect(s.getByText("Recent", { exact: true })).toBeVisible();
+  await tap(page, s.getByRole("button", { name: new RegExp(`^${person.full_name}`) }));
+  await expect(s.getByRole("button", { name: /Change$/ })).toContainText(person.full_name);
+  await tap(page, tile(s, "Text"));
+  await tap(page, tile(s, "Sent"));
+  await expect(toasts(page)).toContainText(/next: Follow up on email to|next: /);
+});

@@ -27,7 +27,8 @@ test.describe("Contacts", () => {
     const { data: kaylas } = await db.from("contact").select("last_name,full_name").eq("account_id", cw!.id).limit(1).single();
     await page.goto("/app/contacts?q=" + encodeURIComponent(kaylas!.full_name!));
     await expect(page.getByText(/Nobody matches/)).toBeVisible(); // Cushman is Kayla's
-    await page.getByRole("link", { name: "Look in everyone's contacts" }).click();
+    // Follow the empty state's link by URL (a same-route soft navigation can hang: BUGS.md#b9, see navigation.spec.ts).
+    await page.goto((await page.getByRole("link", { name: "Look in everyone's contacts" }).getAttribute("href"))!);
     await expect(page.getByRole("link", { name: new RegExp(`^${kaylas!.full_name!}`) })).toBeVisible();
   });
 
@@ -120,7 +121,6 @@ test.describe("Properties", () => {
     await page.getByLabel("Role here").fill("Property manager");
     await page.getByRole("button", { name: "Link contact" }).click();
     await eventually(async () => (await db.from("property_contact").select("contact_id").eq("property_id", prop!.id)).data ?? [], (r) => r.length === 1);
-    await page.reload(); // BUGS.md#b1: the in-place refresh after an ActionForm save can hang
     await expect(page.getByRole("heading", { name: "People at this building · 1" })).toBeVisible();
     await expect(page.getByRole("link", { name: new RegExp(c.full_name) })).toBeVisible();
 

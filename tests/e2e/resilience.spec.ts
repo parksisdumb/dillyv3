@@ -35,8 +35,8 @@ test.describe("Supabase gateway goes down mid-session", () => {
     await expect(page).toHaveURL(/\/app\/accounts/);
   });
 
-  // Known bug: BUGS.md#b8 — the server action redirects the whole page to /login?offline=1.
-  test.fixme("opening the Log sheet while Supabase is down explains it instead of hanging", async ({ page }) => {
+  // Regression: BUGS.md#b8 — the sheet explains it inline; the rep stays on Today.
+  test("opening the Log sheet while Supabase is down explains it instead of hanging", async ({ page }) => {
     await page.goto("/app/today");
     await stopGateway();
     await page.getByRole("button", { name: "Log a touch" }).click();

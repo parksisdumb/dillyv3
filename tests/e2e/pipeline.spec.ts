@@ -51,8 +51,7 @@ test("moving an opportunity through stages", async ({ page }) => {
   await page.goto(`/app/pipeline/${opp.id}`);
   await page.getByLabel("Stage").selectOption({ label: "Proposal sent" });
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await eventually(async () => (await db.from("opportunity").select("stage").eq("id", opp.id).single()).data?.stage, (s) => s === "proposal_sent");
-  await page.reload(); // BUGS.md#b1
+  await expect(page.locator('[role="status"][aria-live="polite"]:not([aria-busy])').last()).toContainText("Saved · Proposal sent");
   await expect(page.locator("main header").getByText("Proposal sent")).toBeVisible();
   await expect(page.getByText("0d", { exact: true })).toBeVisible();
   const { data } = await db.from("point_event").select("event,points").eq("opportunity_id", opp.id);
@@ -60,9 +59,8 @@ test("moving an opportunity through stages", async ({ page }) => {
 
   await page.getByLabel("Stage").selectOption({ label: "Negotiation" });
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await eventually(async () => (await db.from("opportunity").select("stage").eq("id", opp.id).single()).data?.stage, (s) => s === "negotiation");
-  await page.reload();
   await expect(page.locator("main header").getByText("Negotiation")).toBeVisible();
+  expect((await db.from("opportunity").select("stage").eq("id", opp.id).single()).data?.stage).toBe("negotiation");
 });
 
 test("marking lost requires a reason; the reason is shown", async ({ page }) => {
@@ -81,8 +79,8 @@ test("marking lost requires a reason; the reason is shown", async ({ page }) => 
   await expect(page.getByRole("button", { name: "Mark lost" })).toHaveCount(0);
 });
 
-// Known bug: BUGS.md#b4 — the success toast never shows when the form unmounts on success.
-test.fixme("marking won confirms with a toast", async ({ page }) => {
+// Regression: BUGS.md#b4 — the toast must show even though the Won/Lost forms unmount on success.
+test("marking won confirms with a toast", async ({ page }) => {
   const acct = await fxAccount({ owner: "colby" });
   const opp = await fxOpportunity({ accountId: acct.id, stage: "negotiation" });
   await page.goto(`/app/pipeline/${opp.id}`);

@@ -25,7 +25,9 @@ export function TaskActions({ taskId, snoozeCount, hasAccount }: { taskId: strin
   if (deciding) {
     return (
       <div className="mt-2 flex flex-col gap-2 rounded-lg border-2 border-warning p-3">
-        <p className="text-sm font-semibold">Snoozed {snoozeCount} times. Drop it, or take the account off the list?</p>
+        <p className="text-sm font-semibold">
+          {worn ? `Snoozed ${snoozeCount} times. ` : ""}Drop it, or take the account off the list?
+        </p>
         {hasAccount && (
           <input className={input} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Why (e.g. pays late, uses in-house crew)" />
         )}

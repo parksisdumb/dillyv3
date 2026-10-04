@@ -1,15 +1,13 @@
 /**
- * Saves made through ActionForm (src/components/ui/action-form.tsx) must update the screen in place. Reproduces
- * BUGS.md#b1: the server action succeeds (row written, 200 response) but ~half the time the form stays on "Saving…"
- * and the page never refreshes until a manual reload.
+ * Saves made through ActionForm (src/components/ui/action-form.tsx) must update the screen in place. Regression test
+ * for BUGS.md#b1: the server action succeeded but ~half the time the form stayed on "Saving…" until a manual reload.
  */
 import { db, eventually, fxAccount, fxContact, tenantId, uniqueWord } from "./support/db";
 import { as, expect, test } from "./support/ui";
 
 as("colby");
 
-// Known bug: BUGS.md#b1
-test.fixme("linking a contact to a property updates the page without a reload (5 tries)", async ({ page }) => {
+test("linking a contact to a property updates the page without a reload (5 tries)", async ({ page }) => {
   test.setTimeout(180_000);
   for (let i = 0; i < 5; i++) {
     const acct = await fxAccount({ owner: "colby" });
@@ -24,8 +22,9 @@ test.fixme("linking a contact to a property updates the page without a reload (5
     await page.getByPlaceholder("Name or email").fill(c.full_name.split(" ")[1]!);
     await page.getByRole("button", { name: new RegExp(c.full_name) }).click();
     await page.getByRole("button", { name: "Link contact" }).click();
-    await eventually(async () => (await db.from("property_contact").select("contact_id").eq("property_id", prop!.id)).data ?? [], (r) => r.length === 1);
+    await expect(page.locator('[role="status"][aria-live="polite"]').last(), `toast, try ${i + 1}`).toContainText("Linked", { timeout: 10_000 });
     await expect(page.getByRole("heading", { name: "People at this building · 1" }), `try ${i + 1}`).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole("button", { name: "Saving…" })).toHaveCount(0);
+    await eventually(async () => (await db.from("property_contact").select("contact_id").eq("property_id", prop!.id)).data ?? [], (r) => r.length === 1);
   }
 });

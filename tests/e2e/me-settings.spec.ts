@@ -32,8 +32,8 @@ test.describe("Colby (rep)", () => {
     await expect(page.getByRole("heading", { name: "Invites" })).toHaveCount(0);
   });
 
-  // Known bug: BUGS.md#b2 — RLS "infinite recursion detected in policy for relation profile".
-  test.fixme("Settings: saving my profile (mobile number) works", async ({ page }) => {
+  // Regression: BUGS.md#b2 (RLS recursion on profile_update).
+  test("Settings: saving my profile (mobile number) works", async ({ page }) => {
     await page.goto("/app/settings");
     await page.getByLabel("Mobile").fill("(512) 555-0110");
     await page.getByRole("button", { name: "Save profile" }).click();

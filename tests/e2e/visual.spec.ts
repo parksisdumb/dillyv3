@@ -13,7 +13,9 @@ import { expect, test } from "./support/ui";
 const id = async (table: "account" | "contact" | "opportunity", col: string, val: string) =>
   (await db.from(table).select("id").eq(col, val).limit(1).single()).data!.id as string;
 
-const SHOTS: { key: string; who: PersonaKey | null; path: () => Promise<string>; open?: "log" }[] = [
+const propId = async (name: string) => (await db.from("property").select("id").eq("name", name).limit(1).single()).data!.id as string;
+
+const SHOTS: { key: string; who: PersonaKey | null; path: () => Promise<string>; open?: "log" | "transfer" }[] = [
   { key: "01-login", who: null, path: async () => "/login" },
   { key: "02-today", who: "colby", path: async () => "/app/today" },
   { key: "03-today-brief", who: "kayla", path: async () => "/app/today" },
@@ -35,6 +37,8 @@ const SHOTS: { key: string; who: PersonaKey | null; path: () => Promise<string>;
   { key: "19-team-activity", who: "tyler", path: async () => "/app/team/activity" },
   { key: "20-approvals", who: "tyler", path: async () => "/app/approvals" },
   { key: "21-tsg-today", who: "tsgrep", path: async () => "/app/today" },
+  { key: "22-property-detail", who: "colby", path: async () => `/app/properties/${await propId("The Monroe")}` },
+  { key: "23-transfer-sheet", who: "colby", path: async () => `/app/properties/${await propId("The Monroe")}`, open: "transfer" },
 ];
 
 for (const s of SHOTS) {
@@ -46,6 +50,11 @@ for (const s of SHOTS) {
       await page.waitForLoadState("networkidle").catch(() => {});
       if (s.open === "log") {
         await page.getByRole("button", { name: "Log a touch" }).click();
+        await expect(page.locator("dialog[open]")).toBeVisible();
+        await page.waitForTimeout(500);
+      }
+      if (s.open === "transfer") {
+        await page.getByRole("button", { name: "Change management" }).click();
         await expect(page.locator("dialog[open]")).toBeVisible();
         await page.waitForTimeout(500);
       }

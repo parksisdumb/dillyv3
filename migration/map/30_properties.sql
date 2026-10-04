@@ -1,5 +1,9 @@
 -- 30_properties.sql — legacy_v.properties -> public.property. Idempotent.
 -- Unlinked or orphaned properties migrate with account_id null (orphans flagged). Duplicate addresses are suggested, not merged.
+-- Re-runs (06-delta) must not undo management changes recorded in the new app: once a property has ownership history
+-- that a person or agent wrote in Dilly (a transfer, a rep edit, an agent) the app owns property.account_id and V2's
+-- value is ignored. Backfill / insert / import / dillyv2 rows and direct edits without a user (earlier migration runs)
+-- don't count.
 
 insert into public.property as t (
   tenant_id, account_id, name, address1, city, state, zip, asset_class, roof_system, roof_area_sf, building_count, notes,
@@ -17,7 +21,11 @@ select migration.tenant_id(),
  where migration.in_scope(p.org_id)
  order by p.created_at nulls last, p.legacy_id
 on conflict (tenant_id, legacy_table, legacy_id) where legacy_id is not null do update set
-  account_id = excluded.account_id,
+  account_id = case when exists (
+                   select 1 from public.property_party pp
+                    where pp.property_id = t.id
+                      and (pp.source in ('rep','transfer','agent') or (pp.source = 'direct_edit' and pp.created_by is not null)))
+                 then t.account_id else excluded.account_id end,
   name = excluded.name, address1 = excluded.address1, city = excluded.city, state = excluded.state, zip = excluded.zip,
   asset_class = excluded.asset_class, roof_system = excluded.roof_system, roof_area_sf = excluded.roof_area_sf,
   building_count = excluded.building_count, notes = excluded.notes,

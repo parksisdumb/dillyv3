@@ -82,12 +82,11 @@ test.describe("Tyler (manager)", () => {
     await g1Item.getByRole("button", { name: "Approve" }).click();
     const data = await eventually(async () => (await db.from("approval").select("status").eq("id", g1.id).single()).data, (d) => d?.status === "approved");
     expect(data?.status).toBe("approved");
-    await page.reload(); // BUGS.md#b1
     await expect(page.getByText(g1.summary)).toHaveCount(0);
   });
 
-  // Known bug: BUGS.md#b4
-  test.fixme("approving confirms with a toast", async ({ page }) => {
+  // Regression: BUGS.md#b4
+  test("approving confirms with a toast", async ({ page }) => {
     const g1 = await fxApproval({ gate: "G1" });
     await page.goto("/app/approvals");
     await page.locator("main li").filter({ hasText: g1.summary }).getByRole("button", { name: "Approve" }).click();

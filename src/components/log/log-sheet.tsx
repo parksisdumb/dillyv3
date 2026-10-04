@@ -54,7 +54,9 @@ export function LogSheet({
       .then((d) => {
         setData(d);
         setLoadError(null);
-        const c = preferContact ?? d.contact ?? (t.contactId ? null : d.contacts[0] ?? null);
+        // On an account, pre-pick its most recent person. With no context the list is "recent people" across
+        // accounts — make the rep choose rather than guess.
+        const c = preferContact ?? d.contact ?? (t.contactId || !d.account ? null : d.contacts[0] ?? null);
         setContact(c);
         setPicking(!d.account && !c);
       })

@@ -1,5 +1,5 @@
 "use client";
-import { useActionState, useEffect, useRef, startTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import type { ActionState } from "@/lib/actions/state";
 import { IDLE } from "@/lib/actions/state";
 import { btn, cn } from "@/components/ui/styles";
@@ -10,6 +10,14 @@ type Action = (prev: ActionState, fd: FormData) => Promise<ActionState>;
 /**
  * Form bound to a server action. Submits via a transition (not the `action` prop) so inputs keep their values
  * when the server says no. Shows the error inline and toasts the success message.
+ *
+ * Why not useActionState: its pending flag is tied to the action's transition, and when the action revalidates
+ * (every save here does `revalidatePath("/app", "layout")`) that transition is entangled with the router's own
+ * update for the response. Under React 19.1 / Next 15.5 the router update intermittently never commits, leaving
+ * the button on "Saving…" forever although the save succeeded (BUGS.md B1). Calling the action from our own
+ * `useTransition` — the pattern Today's Done/Snooze/Drop and the Log sheet always used — doesn't hang.
+ * The toast fires from the submit handler, not an effect, so it shows even when the form unmounts on success
+ * (an approved item leaving the list, a won job closing its forms).
  */
 export function ActionForm({
   action,
@@ -32,18 +40,10 @@ export function ActionForm({
   stickySubmit?: boolean;
   confirm?: string;
 }) {
-  const [state, dispatch, pending] = useActionState(action, IDLE);
+  const [state, setState] = useState<ActionState>(IDLE);
+  const [pending, start] = useTransition();
   const { toast } = useToast();
-  const last = useRef<ActionState>(IDLE);
-
-  useEffect(() => {
-    if (state === last.current) return;
-    last.current = state;
-    if (state.ok) {
-      if (state.message) toast(state.message);
-      onSuccess?.(state);
-    }
-  }, [state, toast, onSuccess]);
+  const prev = useRef<ActionState>(IDLE);
 
   return (
     <form
@@ -52,7 +52,23 @@ export function ActionForm({
         e.preventDefault();
         if (confirm && !window.confirm(confirm)) return;
         const fd = new FormData(e.currentTarget);
-        startTransition(() => dispatch(fd));
+        start(async () => {
+          // An action that ends in redirect() navigates away and may resolve with nothing.
+          let r: ActionState;
+          try {
+            r = (await action(prev.current, fd)) ?? IDLE;
+          } catch (err) {
+            // redirect() is delivered as navigation, not a throw; a throw here is a lost connection or outage.
+            if (err instanceof Error && /NEXT_REDIRECT/.test(err.message)) throw err;
+            r = { ok: false, error: "Couldn't save — can't reach the server. Check your signal and try again." };
+          }
+          prev.current = r;
+          setState(r);
+          if (r.ok) {
+            if (r.message) toast(r.message);
+            onSuccess?.(r);
+          }
+        });
       }}
     >
       {children}

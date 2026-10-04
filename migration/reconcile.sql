@@ -130,17 +130,28 @@ begin
   status := case when n = 0 then 'PASS' else 'FAIL' end; detail := left(sample, 500); return next;
 
   -- 4/5. contacts per account, properties per account
-  for e in select * from (values ('contacts','contact'), ('properties','property')) v(canon, tgt) loop
+  -- Properties whose management was changed in the new app (30_properties.sql keeps the app's account) are left out
+  -- on both sides: there V2 is no longer the source of truth for the link.
+  for e in select * from (values
+      ('contacts','contact', '', ''),
+      ('properties','property',
+       $f$and not exists (select 1 from public.property p join public.property_party pp on pp.property_id = p.id
+                            where p.tenant_id = $1 and p.legacy_table = $2 and p.legacy_id = v.legacy_id
+                              and (pp.source in ('rep','transfer','agent') or (pp.source = 'direct_edit' and pp.created_by is not null)))$f$,
+       $f$and not exists (select 1 from public.property_party pp where pp.property_id = c.id
+                              and (pp.source in ('rep','transfer','agent') or (pp.source = 'direct_edit' and pp.created_by is not null)))$f$)
+    ) v(canon, tgt, lskip, xskip) loop
     execute format($q$
       with l as (select v.account_legacy_id a, count(*) n from legacy_v.%1$I v
                   where migration.in_scope(v.org_id) and v.account_legacy_id is not null
                     and exists (select 1 from legacy_v.accounts la where la.legacy_id = v.account_legacy_id and migration.in_scope(la.org_id))
+                    %3$s
                   group by 1),
            x as (select a.legacy_id a, count(*) n from public.%2$I c join public.account a on a.id = c.account_id
-                  where c.tenant_id = $1 and c.legacy_table = $2 and a.legacy_table = $3 group by 1)
+                  where c.tenant_id = $1 and c.legacy_table = $2 and a.legacy_table = $3 %4$s group by 1)
       select count(*) filter (where l.n is distinct from x.n), count(*),
              string_agg(coalesce(l.a, x.a) || ': ' || coalesce(l.n, 0) || ' vs ' || coalesce(x.n, 0), '; ') filter (where l.n is distinct from x.n)
-        from l full join x on l.a = x.a$q$, e.canon, e.tgt)
+        from l full join x on l.a = x.a$q$, e.canon, e.tgt, e.lskip, e.xskip)
       using t, migration.lt(e.canon), migration.lt('accounts') into n, m, sample;
     i := i + 1; seq := i; check_name := e.canon || '_per_account'; entity := 'accounts';
     expected := '0 accounts differ'; actual := n || ' of ' || m || ' accounts differ';

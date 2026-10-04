@@ -76,8 +76,8 @@ test.describe("TSG rep can't see FOX", () => {
     await expect(page.getByText(opp!.name)).toHaveCount(0);
   });
 
-  // Known bug: BUGS.md#b6 — not-found renders inside the streamed shell with HTTP 200.
-  test.fixme("another company's record answers with HTTP 404 (not a soft 404)", async ({ page }) => {
+  // Regression: BUGS.md#b6 — real 404, decided in [id]/layout.tsx before any streaming.
+  test("another company's record answers with HTTP 404 (not a soft 404)", async ({ page }) => {
     const fox = await accountIdByName("fox", "Greystar");
     const res = await page.goto(`/app/accounts/${fox}`);
     expect(res?.status()).toBe(404);

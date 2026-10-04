@@ -75,7 +75,7 @@ test("Do not pursue: the account shows why and leaves Today's queue", async ({ p
   await tap(page, page.getByText("Do not pursue", { exact: true }));
   await page.getByLabel(/Reason/).fill("Uses in-house crew");
   await tap(page, page.getByRole("button", { name: "Save · Do not pursue" }));
-  // ActionForm saves can leave the UI stuck on "Saving…" (BUGS.md#b1): assert the save, then reload.
+  await expect(toasts(page)).toContainText("Marked do not pursue");
   await eventually(async () => (await db.from("account_preference").select("preference").eq("account_id", acct.id)).data ?? [], (r) => r.length === 1);
   await page.reload();
   await expect(page.getByText("Off the list — Uses in-house crew")).toBeVisible();

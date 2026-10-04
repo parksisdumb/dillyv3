@@ -67,8 +67,8 @@ test.describe("Colby's Today (no brief today)", () => {
     expect(data?.status).toBe("dropped");
   });
 
-  // Known bug: BUGS.md#b7
-  test.fixme("the Drop prompt doesn't claim the task was snoozed when it never was", async ({ page }) => {
+  // Regression: BUGS.md#b7
+  test("the Drop prompt doesn't claim the task was snoozed when it never was", async ({ page }) => {
     const acct = await fxAccount({ owner: "colby" });
     const t = await fxTask({ accountId: acct.id, title: `Drop-copy ${acct.name}`, kind: "custom", due: 0 });
     await page.goto("/app/today");

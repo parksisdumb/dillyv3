@@ -160,17 +160,18 @@ export async function saveOpportunity(_: ActionState, fd: FormData): Promise<Act
     next_step_due: v.next_step_due ?? null,
     owner_user_id: v.owner_user_id ?? s.userId,
   };
-  let oppId = id;
   if (id) {
+    // Editing: stay put and confirm. (A redirect to the page you're on is a same-route navigation, which is
+    // exactly the kind that can stall — see tests/e2e/BUGS.md B9 — and gives the rep no "saved" signal.)
     const { error } = await sb.from("opportunity").update(row).eq("tenant_id", tenantId).eq("id", id);
     if (error) return { ok: false, error: dbMessage(error, "save the opportunity") };
-  } else {
-    const { data, error } = await sb.from("opportunity").insert({ ...row, tenant_id: tenantId, source: "rep", created_by: s.userId }).select("id").single();
-    if (error || !data) return { ok: false, error: dbMessage(error, "create the opportunity") };
-    oppId = data.id;
+    revalidatePath("/app", "layout");
+    return { ok: true, message: `Saved · ${STAGES[v.stage]}` };
   }
+  const { data, error } = await sb.from("opportunity").insert({ ...row, tenant_id: tenantId, source: "rep", created_by: s.userId }).select("id").single();
+  if (error || !data) return { ok: false, error: dbMessage(error, "create the opportunity") };
   revalidatePath("/app", "layout");
-  redirect(`/app/pipeline/${oppId}`);
+  redirect(`/app/pipeline/${data.id}`);
 }
 
 export async function markWon(_: ActionState, fd: FormData): Promise<ActionState> {

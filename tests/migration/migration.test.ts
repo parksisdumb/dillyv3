@@ -279,6 +279,15 @@ describe("Dilly V2 -> Dilly migration kit", () => {
                     select org_id, account_id, id, '00000000-0000-4000-8000-0000000000a2', 'Site Visit', 'Met in Person', 'outbound', 'Logged after the snapshot'
                       from public.contacts where id = md5('contact5')::uuid`);
     await v2.query("update public.contacts set notes = 'Updated after the snapshot' where id = md5('contact7')::uuid");
+    // A rep recorded a management change in the new app for prop1 (acct1 -> acct3); V2 then edits prop1 and prop2.
+    const acct = (n: number) => `(select id from public.account where legacy_id = md5('acct${n}')::uuid::text)`;
+    const prop = (n: number) => `(select id from public.property where legacy_id = md5('prop${n}')::uuid::text)`;
+    await db.query(`update public.property_party set ended_on = current_date where property_id = ${prop(1)} and role = 'manager' and ended_on is null`);
+    await db.query(`insert into public.property_party(tenant_id, property_id, account_id, role, started_on, source)
+                    select tenant_id, id, ${acct(3)}, 'manager', current_date, 'transfer' from public.property where id = ${prop(1)}`);
+    expect(await val(db, `select account_id = ${acct(3)} from public.property where id = ${prop(1)}`)).toBe(true);
+    await v2.query(`update public.properties set account_id = md5('acct5')::uuid, updated_at = now() where id = md5('prop1')::uuid`);
+    await v2.query(`update public.properties set account_id = md5('acct6')::uuid, updated_at = now() where id = md5('prop2')::uuid`);
     expect(run("migration/06-delta.sh").status).toBe(2);
     const r = mustRun("migration/06-delta.sh", ["--yes"]);
     expect(r.stderr).toMatch(/verdict: PASS/);
@@ -287,6 +296,9 @@ describe("Dilly V2 -> Dilly migration kit", () => {
     expect(await val(db, "select notes from public.contact where legacy_id = md5('contact7')::uuid::text")).toBe("Updated after the snapshot");
     expect(await val(db, "select count(*)::int from legacy._superseded where table_name = 'contacts'")).toBe(1);
     expect(await val(db, "select count(*)::int from legacy._snapshot where kind = 'delta'")).toBe(1);
+    // The app's transfer wins over V2's later edit; a property with no app history still follows V2.
+    expect(await val(db, `select account_id = ${acct(3)} from public.property where id = ${prop(1)}`)).toBe(true);
+    expect(await val(db, `select account_id = ${acct(6)} from public.property where id = ${prop(2)}`)).toBe(true);
   }, 90_000);
 
   it("05-freeze makes V2 read-only for app roles and 05-unfreeze restores it", async () => {

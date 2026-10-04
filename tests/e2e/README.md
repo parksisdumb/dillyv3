@@ -16,5 +16,5 @@ npx playwright show-report test-results/e2e-report
 - **Isolation:** mutating tests create their own rows through `support/db.ts`, with unique names, so specs run in parallel and can be re-run.
 - **Schema drift:** when `supabase/migrations` changes, global setup runs `up.sh --fresh` (needs `STACK_BIN`). `E2E_FRESH=1` forces it and `E2E_FRESH=0` skips it.
 - **Server-side latency:** the app talks to Supabase only from the server, so `page.route` can't slow it down. The app is pointed at `scripts/e2e/latency-proxy.mjs` (:54331 → :54321), which the resilience spec tells to add 3 s to `/rest/v1`. `E2E_DIRECT=1` bypasses the proxy.
-- **Build:** `scripts/e2e/serve.mjs` builds from a copy of the repo in `/tmp/dilly-e2e-app`, so it never clobbers your `.next`. It skips type checking unless `E2E_TYPECHECK=1`, because type errors are `npm run typecheck`'s job. `E2E_REUSE_SERVER=1` reuses a server already running on :3100.
+- **Build:** `scripts/e2e/serve.mjs` builds from a copy of the repo in `/tmp/dilly-e2e-app`, so it never clobbers your `.next`. It is the strict production build (type errors fail it); `E2E_TYPECHECK=0` skips type checking for a tree mid-change. `E2E_REUSE_SERVER=1` reuses a server already running on :3100.
 - **Screens for review:** `test-results/e2e/screens/<project>/*.png`. **Known bugs:** `BUGS.md` (each one is a `test.fixme`).

@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import type { Role } from "@/lib/domain/vocab";
@@ -35,6 +35,9 @@ export const getSession = cache(async (): Promise<Session> => {
     // Auth unreachable ≠ signed out: send them to the offline notice instead of a bare login form.
     const e = authError as { name?: string; status?: number } | null;
     const offline = !!e && (e.name === "AuthRetryableFetchError" || e.status === 0 || (e.status ?? 0) >= 500);
+    // Inside a server action (Log sheet, saves) a redirect would yank the rep off the screen they're on.
+    // Throw instead: the caller shows its own inline "can't reach the server" message and keeps their place.
+    if (offline && (await headers()).has("next-action")) throw new Error("Can't reach the server right now.");
     redirect(offline ? "/login?offline=1" : "/login");
   }
 

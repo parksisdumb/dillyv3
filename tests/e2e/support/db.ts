@@ -230,3 +230,63 @@ export async function eventually<T>(fn: () => Promise<T>, ok: (v: T) => boolean,
   }
   return v;
 }
+
+export async function fxProperty(o: { tenant?: Tenant; accountId: string | null; name?: string; roof?: string; year?: number; city?: string }) {
+  const tenant = await tenantId(o.tenant ?? "fox");
+  return one(
+    db
+      .from("property")
+      .insert({
+        tenant_id: tenant,
+        account_id: o.accountId,
+        name: o.name ?? `${uniqueWord(2)} Flats`,
+        address1: `${100 + Math.floor(Math.random() * 9000)} ${uniqueWord(2)} St`,
+        city: o.city ?? "Pflugerville",
+        state: "TX",
+        roof_system: o.roof ?? "TPO",
+        roof_install_year: o.year ?? 2008,
+        roof_area_sf: 64000,
+        source: "rep",
+      })
+      .select("id,name")
+      .single(),
+    "fxProperty",
+  ) as unknown as Promise<{ id: string; name: string }>;
+}
+
+export async function fxTouch(o: { accountId: string; contactId?: string | null; propertyId?: string | null; who?: PersonaKey; daysAgo?: number; notes?: string }) {
+  const { error } = await db.from("touch").insert({
+    tenant_id: await tenantId("fox"),
+    user_id: await userId(o.who ?? "colby"),
+    account_id: o.accountId,
+    contact_id: o.contactId ?? null,
+    property_id: o.propertyId ?? null,
+    channel: "site_visit",
+    outcome: "met_in_person",
+    notes: o.notes ?? "Walked the roof",
+    occurred_at: new Date(Date.now() - (o.daysAgo ?? 5) * 86_400_000).toISOString(),
+    source: "import", // history only: no follow-up tasks or points
+  });
+  if (error) throw new Error(`fxTouch: ${error.message}`);
+}
+
+export async function linkContact(propertyId: string, contactId: string, role = "On site") {
+  const { error } = await db.from("property_contact").insert({ tenant_id: await tenantId("fox"), property_id: propertyId, contact_id: contactId, role });
+  if (error) throw new Error(`linkContact: ${error.message}`);
+}
+
+export async function accountIdByName(slug: Tenant, name: string): Promise<string> {
+  const { data, error } = await db.from("account").select("id").eq("tenant_id", await tenantId(slug)).eq("name", name).single();
+  if (error || !data) throw new Error(`account ${name}: ${error?.message}`);
+  return data.id;
+}
+
+/** A supabase-js client signed in as a persona (RLS applies), for direct permission checks. */
+export async function asUser(p: PersonaKey) {
+  const { createClient } = await import("@supabase/supabase-js");
+  const { STACK_URL, ANON_KEY, E2E_PASSWORD } = await import("../../../scripts/e2e/seed");
+  const c = createClient(STACK_URL, ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { error } = await c.auth.signInWithPassword({ email: PERSONAS[p].email, password: E2E_PASSWORD });
+  if (error) throw new Error(`sign in ${p}: ${error.message}`);
+  return c;
+}

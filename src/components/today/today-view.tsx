@@ -45,6 +45,7 @@ export function TodayView({ d }: { d: TodayData }) {
 
   return (
     <div>
+      <h1 className="sr-only">Today</h1>
       {d.error && <ErrorNote>Couldn&apos;t load your queue: {d.error}</ErrorNote>}
 
       {d.brief && (

@@ -34,7 +34,7 @@ const toOption = (c: ContactRow, accountName?: string | null): ContactOption => 
 
 /** Everything the Log sheet needs for a context: the account, its people, buildings, open deals, point values. */
 export async function loadLogContext(target: LogTarget): Promise<LogContextData> {
-  const { sb, tenantId, today } = await ctx();
+  const { sb, s, tenantId, today } = await ctx();
   let accountId = target.accountId ?? null;
   let contact: ContactOption | null = null;
 
@@ -68,15 +68,42 @@ export async function loadLogContext(target: LogTarget): Promise<LogContextData>
     sb.from("point_rule").select("tenant_id,event,points").or(`tenant_id.is.null,tenant_id.eq.${tenantId}`),
   ]);
 
+  // No context (the floating Log button on Today, Pipeline…): offer the people I touched most recently so the
+  // usual "log the call I just made" is one tap instead of typing a name.
+  const recent = !accountId && !contact ? await recentPeople(sb, tenantId, s.userId) : [];
+
   return {
     account: acct.data ? { id: acct.data.id, name: acct.data.name } : null,
     contact,
-    contacts: (contacts.data ?? []).map((c) => toOption(c, acct.data?.name)),
+    contacts: accountId ? (contacts.data ?? []).map((c) => toOption(c, acct.data?.name)) : recent,
     properties: (props.data ?? []).map((p) => ({ id: p.id, label: p.name || [p.address1, p.city].filter(Boolean).join(", ") || "Unnamed property" })),
     opportunities: (opps.data ?? []).map((o) => ({ id: o.id, name: o.name })),
     points: mergePointRules(rules.data ?? []),
     today,
   };
+}
+
+async function recentPeople(sb: Awaited<ReturnType<typeof ctx>>["sb"], tenantId: string, userId: string): Promise<ContactOption[]> {
+  const { data: touches } = await sb
+    .from("touch")
+    .select("contact_id")
+    .eq("tenant_id", tenantId)
+    .eq("user_id", userId)
+    .not("contact_id", "is", null)
+    .is("voided_at", null)
+    .order("occurred_at", { ascending: false })
+    .limit(40);
+  const ids = [...new Set((touches ?? []).map((t) => t.contact_id).filter((x): x is string => !!x))].slice(0, 6);
+  if (!ids.length) return [];
+  const { data: people } = await sb.from("contact").select(CONTACT_COLS).eq("tenant_id", tenantId).in("id", ids).is("duplicate_of", null);
+  const acctIds = [...new Set((people ?? []).map((p) => p.account_id).filter((x): x is string => !!x))];
+  const { data: accts } = acctIds.length ? await sb.from("account").select("id,name").in("id", acctIds) : { data: [] as { id: string; name: string }[] };
+  const names = new Map((accts ?? []).map((a) => [a.id, a.name]));
+  const byId = new Map((people ?? []).map((p) => [p.id, p]));
+  return ids.flatMap((id) => {
+    const p = byId.get(id);
+    return p ? [toOption(p, p.account_id ? names.get(p.account_id) : null)] : [];
+  });
 }
 
 /** Contacts and accounts by name (trigram-indexed columns) for the Log sheet picker. */
