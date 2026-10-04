@@ -1,4 +1,4 @@
-import { eventually, fxAccount, touchesForContact, db, uniqueWord } from "./support/db";
+import { eventually, fxAccount, touchesForContact, db, tenantId, uniqueWord } from "./support/db";
 import { as, expect, sheet, tap, test, tile, toasts } from "./support/ui";
 
 as("colby");
@@ -20,7 +20,8 @@ test("adding someone who already exists asks 'Is this them?' and reuses the exis
   // The sheet now targets the existing Dana at Greystar — no duplicate was created.
   await expect(s.getByRole("button", { name: /^Dana Whitfield/ })).toBeVisible();
   await expect(s.locator("#log-sheet-title")).toHaveText("Greystar");
-  const { count } = await db.from("contact").select("id", { count: "exact", head: true }).eq("full_name", "Dana Whitfield");
+  // FOX only: the import spec briefly creates a TSG "Dana Whitfield" (docs/samples/tsg-import-sample.csv) in parallel.
+  const { count } = await db.from("contact").select("id", { count: "exact", head: true }).eq("tenant_id", await tenantId("fox")).eq("full_name", "Dana Whitfield");
   expect(count).toBe(1);
 });
 

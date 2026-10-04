@@ -1,5 +1,4 @@
-import { Suspense } from "react";
-import RouteSkeleton from "./skeleton";
+import { pageBody } from "@/components/status/page-boundary";
 import type { Metadata } from "next";
 import { ctx } from "@/lib/server/ctx";
 import { cleanQuery } from "@/lib/server/zod-helpers";
@@ -49,13 +48,8 @@ async function AccountsPageBody({ searchParams }: { searchParams: Promise<SP> })
   );
 }
 
-// Skeleton in the page's own Suspense, not a route loading.tsx: a loading.tsx boundary made same-screen navigations
-// (filters, scope, saves) intermittently never commit. See tests/e2e/BUGS.md B9.
+// No loading.tsx and no page-level Suspense (tests/e2e/BUGS.md B9, B10): see pageBody().
 export default async function AccountsPage(props: Parameters<typeof AccountsPageBody>[0]) {
   const key = JSON.stringify(await props.searchParams);
-  return (
-    <Suspense key={key} fallback={<RouteSkeleton />}>
-      <AccountsPageBody {...props} />
-    </Suspense>
-  );
+  return pageBody(() => AccountsPageBody(props), key);
 }

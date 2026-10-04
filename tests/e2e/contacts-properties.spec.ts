@@ -1,4 +1,4 @@
-import { db, eventually, fxAccount, fxContact, uniqueWord } from "./support/db";
+import { db, eventually, fxAccount, fxContact, uniqueWord, tenantId } from "./support/db";
 import { as, expect, formAlert, tap, test } from "./support/ui";
 
 as("colby");
@@ -50,7 +50,7 @@ test.describe("Contacts", () => {
   });
 
   test("contact detail renders tasks, timeline and the edit form", async ({ page }) => {
-    const { data: dana } = await db.from("contact").select("id").eq("full_name", "Dana Whitfield").single();
+    const { data: dana } = await db.from("contact").select("id").eq("tenant_id", await tenantId("fox")).eq("full_name", "Dana Whitfield").single();
     await page.goto(`/app/contacts/${dana!.id}`);
     await expect(page.getByRole("heading", { level: 1, name: "Dana Whitfield" })).toBeVisible();
     await expect(page.getByRole("heading", { name: /^Open tasks · \d+/ })).toBeVisible();

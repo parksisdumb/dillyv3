@@ -6,6 +6,8 @@ import { FloatingLogButton } from "@/components/log/log-button";
 import { OfflineQueueProvider } from "@/components/offline/offline-queue";
 import type { QueuedLog } from "@/lib/offline/types";
 import { ClientErrorContext } from "@/components/observability/client-errors";
+import { NavProgress } from "@/components/shell/nav-progress";
+import { Suspense } from "react";
 
 type T = { slug: string; name: string; role: string };
 
@@ -38,6 +40,9 @@ export function AppShell({
   return (
     <ToastProvider>
       <ClientErrorContext user={userId} tenant={tenantId} />
+      <Suspense fallback={null}>
+        <NavProgress />
+      </Suspense>
       <OfflineQueueProvider userId={userId} tenantId={tenantId} seed={queuePreview}>
         <LogProvider>
           <TopBar tenant={tenant} tenants={tenants} fullName={fullName} email={email} isManager={isManager} />

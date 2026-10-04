@@ -1,9 +1,8 @@
-import { Suspense } from "react";
+import { pageBody } from "@/components/status/page-boundary";
 import type { Metadata } from "next";
 import { ctx } from "@/lib/server/ctx";
 import { getMembers } from "@/lib/server/members";
 import { safeData } from "@/lib/server/safe";
-import { FormPageSkeleton } from "@/components/status/skeletons";
 import { ImportWizard, type RecentImport, type SavedMapping } from "@/components/import/import-wizard";
 
 export const metadata: Metadata = { title: "Import" };
@@ -54,9 +53,5 @@ async function ImportBody({ entity }: { entity?: string }) {
 
 export default async function ImportPage({ searchParams }: { searchParams: Promise<{ entity?: string }> }) {
   const sp = await searchParams;
-  return (
-    <Suspense fallback={<FormPageSkeleton label="import" />}>
-      <ImportBody entity={sp.entity} />
-    </Suspense>
-  );
+  return pageBody(() => ImportBody({ entity: sp.entity }));
 }

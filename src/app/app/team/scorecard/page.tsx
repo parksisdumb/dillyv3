@@ -1,11 +1,10 @@
-import { Suspense } from "react";
+import { pageBody } from "@/components/status/page-boundary";
 import type { Metadata } from "next";
 import { ctx } from "@/lib/server/ctx";
 import { requireManager } from "@/lib/server/guard";
 import { loadScorecard } from "@/lib/server/scorecard";
 import { saveScorecardTargets } from "@/lib/actions/settings";
 import { ScorecardView } from "@/components/team/scorecard-view";
-import { TeamSkeleton } from "@/components/status/skeletons";
 import { ActionForm } from "@/components/ui/action-form";
 import { TextField } from "@/components/ui/fields";
 import { SectionTitle } from "@/components/ui/bits";
@@ -42,9 +41,5 @@ async function Body() {
 }
 
 export default function ScorecardPage() {
-  return (
-    <Suspense fallback={<TeamSkeleton />}>
-      <Body />
-    </Suspense>
-  );
+  return pageBody(() => Body());
 }

@@ -3,7 +3,7 @@
  * the iOS install hint, digits-only phone search, and "+ Opportunity" from a property.
  * (The OS permission prompt can't be driven headless; the states around it are faked with init scripts.)
  */
-import { db, fxAccount, fxProperty, userId } from "./support/db";
+import { db, fxAccount, fxProperty, userId, tenantId } from "./support/db";
 import { as, expect, test, toasts } from "./support/ui";
 
 test.describe("installable app", () => {
@@ -144,7 +144,7 @@ test.describe("field fixes (Colby)", () => {
   as("colby");
 
   test("contact search finds a phone number typed with different formatting", async ({ page }) => {
-    const { data: dana } = await db.from("contact").select("id,full_name,phone").eq("full_name", "Dana Whitfield").limit(1).single();
+    const { data: dana } = await db.from("contact").select("id,full_name,phone").eq("tenant_id", await tenantId("fox")).eq("full_name", "Dana Whitfield").limit(1).single();
     const d = dana!.phone!.replace(/\D/g, "");
     expect(d.length).toBe(10);
     for (const q of [`${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`, `+1 ${d}`]) {

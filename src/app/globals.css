@@ -128,6 +128,16 @@ dialog[open] {
   }
 }
 
+/* Navigation progress bar (src/components/shell/nav-progress.tsx). */
+@keyframes navbar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

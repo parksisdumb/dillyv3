@@ -1,5 +1,4 @@
-import { Suspense } from "react";
-import RouteSkeleton from "./skeleton";
+import { pageBody } from "@/components/status/page-boundary";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ctx } from "@/lib/server/ctx";
@@ -59,13 +58,8 @@ async function ContactPageBody({ params }: { params: Promise<{ id: string }> }) 
   );
 }
 
-// Skeleton in the page's own Suspense, not a route loading.tsx: a loading.tsx boundary made same-screen navigations
-// (filters, scope, saves) intermittently never commit. See tests/e2e/BUGS.md B9.
+// No loading.tsx and no page-level Suspense (tests/e2e/BUGS.md B9, B10): see pageBody().
 export default async function ContactPage(props: Parameters<typeof ContactPageBody>[0]) {
   const key = JSON.stringify(await props.params);
-  return (
-    <Suspense key={key} fallback={<RouteSkeleton />}>
-      <ContactPageBody {...props} />
-    </Suspense>
-  );
+  return pageBody(() => ContactPageBody(props), key);
 }

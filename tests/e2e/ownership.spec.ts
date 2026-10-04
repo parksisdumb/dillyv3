@@ -108,7 +108,17 @@ test("change a property's manager Greystar → RPM: history, people, opportunity
   const { data: intro } = await db.from("task").select("id,title,due_on,boost,assignee_user_id,status").eq("property_id", prop.id).like("title", "Intro to new management%").single();
   expect(intro).toMatchObject({ boost: 100, status: "open", assignee_user_id: await userId("colby") });
   const { data: q } = await db.rpc("rep_queue", { p_tenant: await tenantId("fox"), p_user: await userId("colby"), p_day: intro!.due_on });
-  expect((q as { task_id: string | null }[])[0]?.task_id).toBe(intro!.id);
+  // Colby's queue is shared with every spec running in parallel, so "first" means: nothing that isn't itself a boosted
+  // door-opener (another test's intro/reconnect) ranks above it — every ordinary follow-up, however overdue, is below.
+  const rows = q as { task_id: string | null; score: number }[];
+  const at = rows.findIndex((r) => r.task_id === intro!.id);
+  expect(at).toBeGreaterThanOrEqual(0);
+  const aboveIds = rows.slice(0, at).map((r) => r.task_id).filter((x): x is string => !!x);
+  expect(rows.slice(0, at).every((r) => r.task_id)).toBe(true); // no account-level suggestion outranks it
+  const { data: above } = aboveIds.length ? await db.from("task").select("id,boost").in("id", aboveIds) : { data: [] as { id: string; boost: number }[] };
+  expect((above ?? []).filter((t) => !(t.boost > 0))).toEqual([]);
+  const ordinary = rows.slice(at + 1).filter((r) => r.task_id);
+  if (ordinary.length) expect(rows[at].score).toBeGreaterThanOrEqual(ordinary[0].score);
 });
 
 test("portfolio move: two of an account's properties move to a new manager in one step", async ({ page }) => {

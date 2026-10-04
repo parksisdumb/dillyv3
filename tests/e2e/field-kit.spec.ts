@@ -270,3 +270,32 @@ test.describe("browser error reporting", () => {
     expect((await page.request.post("/api/client-error", { data: "nope", headers: { "content-type": "application/json" } })).status()).toBe(400);
   });
 });
+
+test.describe("page loads (B10)", () => {
+  test("a full page load never holds a second, hidden copy of the screen", async ({ page }) => {
+    const { acct, prop } = await buildingFixture();
+    await page.addInitScript(() => {
+      const w = window as unknown as { __maxH1: number; __hiddenSegments: number };
+      w.__maxH1 = 0;
+      w.__hiddenSegments = 0;
+      const t0 = performance.now();
+      const tick = () => {
+        w.__maxH1 = Math.max(w.__maxH1, document.querySelectorAll("h1").length);
+        const seg = [...document.querySelectorAll('div[hidden][id^="S:"]')].filter((d) => (d.textContent ?? "").trim().length > 0).length;
+        w.__hiddenSegments = Math.max(w.__hiddenSegments, seg);
+        if (performance.now() - t0 < 4000) setTimeout(tick, 2);
+      };
+      tick();
+    });
+    for (const path of [`/app/properties/${prop.id}`, `/app/accounts/${acct.id}`, "/app/pipeline", "/app/today", "/app/properties"]) {
+      await page.goto(path);
+      await page.reload();
+      await page.waitForTimeout(1200);
+      const r = await page.evaluate(() => {
+        const w = window as unknown as { __maxH1: number; __hiddenSegments: number };
+        return { h1: w.__maxH1, hidden: w.__hiddenSegments };
+      });
+      expect(r, path).toEqual({ h1: 1, hidden: 0 });
+    }
+  });
+});

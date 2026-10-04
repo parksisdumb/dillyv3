@@ -1,5 +1,4 @@
-import { Suspense } from "react";
-import RouteSkeleton from "./skeleton";
+import { pageBody } from "@/components/status/page-boundary";
 import type { Metadata } from "next";
 import { ctx } from "@/lib/server/ctx";
 import { safe, safeCount, safeData } from "@/lib/server/safe";
@@ -124,13 +123,16 @@ async function TodayPageBody() {
   );
 }
 
-// Skeleton in the page's own Suspense, not a route loading.tsx (see tests/e2e/BUGS.md B9).
+// No loading.tsx and no page-level Suspense (tests/e2e/BUGS.md B9, B10): see pageBody().
 export default function TodayPage() {
-  return (
-    <Suspense fallback={<RouteSkeleton />}>
-      <InstallHint />
-      <ConnectEmailPrompt />
-      <TodayPageBody />
-    </Suspense>
-  );
+  return pageBody(async () => {
+    const [prompt, body] = await Promise.all([ConnectEmailPrompt(), TodayPageBody()]);
+    return (
+      <>
+        <InstallHint />
+        {prompt}
+        {body}
+      </>
+    );
+  });
 }
