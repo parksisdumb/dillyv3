@@ -4,6 +4,7 @@ import { getSession, type Session } from "@/lib/session";
 import { supabaseServer } from "@/lib/supabase/server";
 import { localDate } from "@/lib/format";
 import type { ActionState } from "@/lib/actions/state";
+import { log } from "@/lib/observability/log";
 
 export type Ctx = { s: Session; sb: Awaited<ReturnType<typeof supabaseServer>>; tenantId: string; today: string };
 
@@ -17,7 +18,14 @@ type PgError = { code?: string; message?: string; details?: string | null; hint?
 
 /** Turn a Supabase/Postgres error into something a rep can read. */
 export function dbMessage(e: PgError, what = "save that"): string {
+  // Every server action funnels DB failures through here, so this is where they get logged.
+  // Expected rejections (permission, duplicate, validation) are warnings; anything else is an error.
+  const expected = !!e?.code && ["42501", "23505", "23503", "23514", "22P02", "23502", "PGRST116"].includes(e.code);
+  (expected ? log.warn : log.error)("action:db", { what, err: e ?? new Error("no error object") });
   if (!e) return `Couldn't ${what}.`;
+  if (!e.code && /^(AbortError|FetchError|TypeError)/.test(e.message ?? "")) {
+    return `Couldn't ${what} — can't reach the server. Check your signal and try again.`;
+  }
   switch (e.code) {
     case "42501":
       return `You don't have permission to ${what}.`;

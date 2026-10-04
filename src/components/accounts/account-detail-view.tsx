@@ -9,6 +9,11 @@ import { OnboardingStepper } from "@/components/accounts/onboarding-stepper";
 import { PreferenceControl } from "@/components/accounts/preference-control";
 import { TouchTimeline, type TimelineTouch } from "@/components/accounts/touch-timeline";
 import { IconDirections, IconEdit, IconMail, IconPhone, IconPlus } from "@/components/icons";
+import type { PropertyBadge } from "@/lib/domain/badges-property";
+import { PARTY_ROLES, tenureLabel, type PartyRole } from "@/lib/domain/ownership";
+import type { PastProperty } from "@/lib/server/ownership";
+import { PropertyBadges } from "@/components/accounts/property-badges";
+import { MoveProperties, type MovePerson, type MovePreview } from "@/components/accounts/move-properties";
 
 const PERSONA_ORDER = Object.keys(PERSONA_ROLES) as PersonaRole[];
 
@@ -38,9 +43,12 @@ export type AccountDetailData = {
   contacts: { id: string; full_name: string | null; title: string | null; persona_role: string; phone: string | null; mobile: string | null; email: string | null; do_not_contact: boolean }[];
   timeline: TimelineTouch[];
   ownerName: string | null;
+  propBadges?: Record<string, PropertyBadge[]>;
+  past?: PastProperty[];
+  movePeople?: MovePerson[];
 };
 
-export function AccountDetailView({ d }: { d: AccountDetailData }) {
+export function AccountDetailView({ d, movePreview }: { d: AccountDetailData; movePreview?: MovePreview }) {
   const { id, today, a, task, opps, props, contacts, timeline, ownerName } = d;
   const grouped = PERSONA_ORDER.map((role) => ({ role, people: contacts.filter((p) => p.persona_role === role) })).filter((g) => g.people.length);
   const sunk = a.relationship_state === "excluded" || a.relationship_state === "do_not_pursue";
@@ -169,9 +177,21 @@ export function AccountDetailView({ d }: { d: AccountDetailData }) {
       {/* Properties */}
       <SectionTitle
         action={
-          <Link href={`/app/accounts/${id}/property/new`} className={btn("ghost", "sm")}>
-            <IconPlus size={16} /> Property
-          </Link>
+          <span className="flex items-center">
+            {props.length > 0 && (
+              <MoveProperties
+                accountId={id}
+                accountName={a.name ?? "this account"}
+                today={today}
+                properties={props.map((p) => ({ id: p.id, name: p.name || p.address1 || "Unnamed property", sub: [p.address1, p.city].filter(Boolean).join(", ") || null }))}
+                people={d.movePeople ?? []}
+                preview={movePreview}
+              />
+            )}
+            <Link href={`/app/accounts/${id}/property/new`} className={btn("ghost", "sm")}>
+              <IconPlus size={16} /> Property
+            </Link>
+          </span>
         }
       >
         Properties · {props.length}
@@ -187,16 +207,43 @@ export function AccountDetailView({ d }: { d: AccountDetailData }) {
                 <Link href={`/app/properties/${p.id}`} className="block px-4 py-3 hover:bg-surface-2">
                   <div className="font-semibold">{p.name || p.address1 || "Unnamed property"}</div>
                   <div className="text-sm text-muted">{[p.address1, p.city].filter(Boolean).join(", ")}</div>
-                  <div className="num mt-0.5 text-sm">
-                    {p.roof_system ? <span className="label text-xs">{p.roof_system}</span> : <span className="text-muted">Roof unknown</span>}
-                    {roofAge != null && <span className={cn("ml-2", roofAge >= 15 && "font-semibold text-warning")}>{roofAge} yrs</span>}
-                    {p.roof_area_sf && <span className="ml-2 text-muted">{Math.round(Number(p.roof_area_sf)).toLocaleString()} sf</span>}
-                  </div>
+                  {d.propBadges?.[p.id] ? (
+                    <PropertyBadges badges={d.propBadges[p.id]} max={3} className="mt-1.5" />
+                  ) : (
+                    <div className="num mt-0.5 text-sm">
+                      {p.roof_system ? <span className="label text-xs">{p.roof_system}</span> : <span className="text-muted">Roof unknown</span>}
+                      {roofAge != null && <span className={cn("ml-2", roofAge >= 15 && "font-semibold text-warning")}>{roofAge} yrs</span>}
+                      {p.roof_area_sf && <span className="ml-2 text-muted">{Math.round(Number(p.roof_area_sf)).toLocaleString()} sf</span>}
+                    </div>
+                  )}
                 </Link>
               </li>
             );
           })}
         </ul>
+      )}
+
+      {/* Past properties: buildings this company used to manage/own */}
+      {d.past && d.past.length > 0 && (
+        <>
+          <SectionTitle>Past properties · {d.past.length}</SectionTitle>
+          <ul className="divide-y divide-line border-y border-line bg-surface">
+            {d.past.map((p) => (
+              <li key={`${p.id}-${p.role}`}>
+                <Link href={`/app/properties/${p.id}`} className="block px-4 py-3 hover:bg-surface-2">
+                  <div className="flex items-baseline gap-2">
+                    <span className="min-w-0 flex-1 truncate font-semibold">{p.name}</span>
+                    <span className="label shrink-0 text-xs text-muted">{PARTY_ROLES[p.role as PartyRole]?.label ?? p.role}</span>
+                  </div>
+                  <div className="truncate text-sm text-muted">
+                    {tenureLabel(p.started_on, p.ended_on)}
+                    {p.now && <> · now {p.now}</>}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       {/* Contacts */}

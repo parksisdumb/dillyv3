@@ -1,6 +1,9 @@
 "use server";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
+import { log } from "@/lib/observability/log";
+import { requestInfo } from "@/lib/observability/request";
 import { ctx, dbMessage } from "@/lib/server/ctx";
 import { keysEnum, optUuid, cleanQuery, splitName } from "@/lib/server/zod-helpers";
 import { CHANNELS, OUTCOMES, PERSONA_ROLES } from "@/lib/domain/vocab";
@@ -120,6 +123,8 @@ const logSchema = z
     followUpNote: z.string().trim().max(200).optional().nullable(),
     skipFollowUp: z.boolean().optional(),
     source: z.enum(["rep", "field"]).optional(),
+    /** Client-generated per log attempt; a retried/double-tapped submit with the same key logs once. */
+    idempotencyKey: z.string().uuid().optional().nullable(),
   })
   .refine((v) => v.accountId || v.contactId || v.propertyId, { message: "Pick a contact or an account first." });
 
@@ -128,12 +133,27 @@ const logSchema = z
  * We only read back what happened so the toast can say it.
  */
 export async function logTouch(input: LogInput): Promise<LogResult> {
+  const started = Date.now();
+  try {
+    return await logTouchInner(input);
+  } catch (err) {
+    unstable_rethrow(err); // session redirects are control flow
+    log.error("action:logTouch", { ...(await requestInfo()), durationMs: Date.now() - started, err });
+    return { ok: false, error: "Couldn't log that. Check your signal and tap again — it won't double-log." };
+  }
+}
+
+async function logTouchInner(input: LogInput): Promise<LogResult> {
   const parsed = logSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the log." };
   const v = parsed.data;
   const { sb, s, tenantId, today } = await ctx();
+  const source = v.source ?? "rep";
+  // Idempotency: touch_external_uq is unique on (tenant_id, source, external_id). A repeat submit with the
+  // same key hits 23505 and we return the touch that already landed instead of logging it twice.
+  const externalId = v.idempotencyKey ? `idem:${v.idempotencyKey}` : null;
 
-  const { data: touch, error } = await sb
+  let { data: touch, error } = await sb
     .from("touch")
     .insert({
       tenant_id: tenantId,
@@ -149,11 +169,23 @@ export async function logTouch(input: LogInput): Promise<LogResult> {
       follow_up_on: v.followUpOn ?? null,
       follow_up_note: v.followUpNote || null,
       skip_follow_up: v.skipFollowUp ?? false,
-      source: v.source ?? "rep",
+      source,
+      external_id: externalId,
     })
     .select("id")
     .single();
-  if (error || !touch) return { ok: false, error: dbMessage(error, "log that") };
+  if (error?.code === "23505" && externalId) {
+    const existing = await sb.from("touch").select("id").eq("tenant_id", tenantId).eq("source", source).eq("external_id", externalId).maybeSingle();
+    if (existing.data) {
+      log.info("action:logTouch:duplicate-submit", { ...(await requestInfo()), tenant: tenantId, user: s.userId, touch: existing.data.id });
+      touch = existing.data;
+      error = null;
+    }
+  }
+  if (error || !touch) {
+    log.warn("action:logTouch:failed", { ...(await requestInfo()), tenant: tenantId, user: s.userId, err: error });
+    return { ok: false, error: dbMessage(error, "log that") };
+  }
 
   const [awards, closed, next] = await Promise.all([
     sb.from("point_event").select("event,points").eq("tenant_id", tenantId).eq("touch_id", touch.id),

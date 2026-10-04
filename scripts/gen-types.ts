@@ -38,7 +38,8 @@ async function main() {
     select p.proname, pg_get_function_arguments(p.oid) as args, pg_get_function_result(p.oid) as result
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
      where n.nspname = 'public' and p.prokind = 'f'
-       and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')`);
+       and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
+     order by p.proname`);
   await c.end();
 
   const tables = new Map<string, typeof cols.rows>();
@@ -79,8 +80,11 @@ async function main() {
       .map((a) => {
         const [n, ...rest] = a.replace(/ DEFAULT .*/i, "").split(" ");
         const opt = / DEFAULT /i.test(a) ? "?" : "";
-        const ty = rest.join(" ").replace(/^(public|app)\./, "");
-        return `${n}${opt}: ${PG_TO_TS[ty === "integer" ? "int4" : ty === "date" ? "date" : ty === "uuid" ? "uuid" : "text"] ?? "string"}`;
+        const raw = rest.join(" ").replace(/^(public|app)\./, "");
+        const isArr = raw.endsWith("[]");
+        const ty = raw.replace(/\[\]$/, "");
+        const base = ty === "boolean" ? "boolean" : /^(integer|smallint|bigint|numeric)$/.test(ty) ? "number" : "string";
+        return `${n}${opt}: ${base}${isArr ? "[]" : ""}`;
       })
       .join("; ");
     const isSet = /^TABLE\(/i.test(f.result) || /^SETOF/i.test(f.result);

@@ -14,7 +14,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
 
   let q = sb
     .from("opportunity")
-    .select("id,name,stage,value_estimate,next_step,next_step_due,stage_changed_at,account_id,owner_user_id")
+    .select("id,name,stage,value_estimate,next_step,next_step_due,stage_changed_at,account_id,owner_user_id,service_line")
     .eq("tenant_id", tenantId)
     .eq("is_test", false)
     .in("stage", OPEN_STAGES);
@@ -38,6 +38,7 @@ export default async function PipelinePage({ searchParams }: { searchParams: Pro
         stalled: isStalled(o.stage, d),
         next_step: o.next_step,
         next_step_due: o.next_step_due,
+        service_line: o.service_line,
       } satisfies OppCardData,
     };
   });

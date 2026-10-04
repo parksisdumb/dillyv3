@@ -1,12 +1,22 @@
 import Link from "next/link";
 import { AGE_BANDS, roofAge } from "@/lib/domain/book";
-import { daysBetween, money, quietLabel, shortDate } from "@/lib/format";
+import { daysBetween, money, shortDate } from "@/lib/format";
 import type { PropertyListRow, PropertySP } from "@/lib/server/book";
 import { BookTabs } from "@/components/accounts/book-tabs";
 import { FilterChip, hrefWith } from "@/components/accounts/filter-chip";
 import { Chip, Empty, ErrorNote } from "@/components/ui/bits";
 import { btn, cn, input } from "@/components/ui/styles";
 import { IconChevronRight, IconPlus, IconSearch } from "@/components/icons";
+import { PropertyBadges } from "@/components/accounts/property-badges";
+
+/** "4d ago", "3mo ago", "Never touched" — the list row's freshness, kept short so badges get the room. */
+function quietShort(days: number | null): string {
+  if (days == null) return "Never touched";
+  if (days < 1) return "Today";
+  if (days < 60) return `${days}d ago`;
+  if (days < 730) return `${Math.round(days / 30)}mo ago`;
+  return `${Math.round(days / 365)}y ago`;
+}
 
 const ROOF_SYSTEMS = ["TPO", "EPDM", "PVC", "Mod-bit", "BUR", "Metal", "Shingle", "Coating"];
 const ASSET_CLASSES = ["Multifamily", "Office", "Industrial", "Retail", "K-12", "Healthcare", "Hospitality", "Government"];
@@ -147,19 +157,25 @@ export function PropertiesListView({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <span className="min-w-0 flex-1 truncate font-display text-base font-bold">{r.name}</span>
+                      <span className={cn("num shrink-0 text-xs", r.days == null || r.days > 60 ? "text-warning" : "text-muted")}>{quietShort(r.days)}</span>
                       {r.open_value > 0 && <span className="num shrink-0 font-display font-bold">{money(r.open_value)}</span>}
                     </div>
                     <div className="truncate text-sm text-muted">
                       {[r.address !== r.name ? r.address : null, r.city].filter(Boolean).join(", ")}
                       {" · "}
-                      {r.account_name ?? <span className="text-warning">No account</span>}
+                      {r.manager_name ?? r.account_name ?? <span className="text-warning">No account</span>}
+                      {r.owner_name && r.owner_name !== (r.manager_name ?? r.account_name) && <> · Owner {r.owner_name}</>}
                     </div>
-                    <div className="num mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-                      {r.roof_system ? <span className="label text-xs">{r.roof_system}</span> : <span className="text-muted">Roof unknown</span>}
-                      {age != null && <span className={cn("font-semibold", age >= 20 ? "text-danger" : age >= 15 ? "text-warning" : "text-ink")}>{age} yrs</span>}
-                      {wDays != null && wDays >= 0 && wDays <= 365 && <Chip tone="warn">Warranty ends {shortDate(r.warranty_expires_on)}</Chip>}
-                      {wDays != null && wDays < 0 && <span className="text-muted">Out of warranty</span>}
-                      <span className={cn(r.days == null || r.days > 60 ? "text-warning" : "text-muted")}>{quietLabel(r.days, r.last_touch_at)}</span>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      {r.badges ? (
+                        <PropertyBadges badges={r.badges} max={3} className="min-w-0 flex-1" />
+                      ) : (
+                        <span className="num flex flex-1 flex-wrap items-center gap-x-3 text-sm">
+                          {r.roof_system ? <span className="label text-xs">{r.roof_system}</span> : <span className="text-muted">Roof unknown</span>}
+                          {age != null && <span className={cn("font-semibold", age >= 20 ? "text-danger" : age >= 15 ? "text-warning" : "text-ink")}>{age} yrs</span>}
+                          {wDays != null && wDays >= 0 && wDays <= 365 && <Chip tone="warn">Warranty ends {shortDate(r.warranty_expires_on)}</Chip>}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <IconChevronRight size={20} className="mt-1 shrink-0 text-muted" />

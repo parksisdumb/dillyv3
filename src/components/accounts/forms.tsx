@@ -146,7 +146,7 @@ export function ContactEditForm({ c, account }: { c: ContactValues; account: Pic
         <TextField label="Title" name="title" defaultValue={c.title} />
         <SelectField label="Role" name="persona_role" options={opts(PERSONA_ROLES)} defaultValue={c.persona_role} />
       </div>
-      <SearchPicker name="account_id" label="Account" search={searchAccountOptions} create={quickCreateAccount} initial={account} placeholder="Company they work for" hint="Clear it to unlink the account." />
+      <SearchPicker name="account_id" label="Account" search={searchAccountOptions} create={quickCreateAccount} initial={account} placeholder="Company they work for" hint="Fixing a typo? Change it here. Changed jobs? Use “Changed companies” at the top so their history follows them." />
       <div className="grid grid-cols-2 gap-3">
         <TextField label="Mobile" name="mobile" type="tel" inputMode="tel" defaultValue={c.mobile} />
         <TextField label="Office phone" name="phone" type="tel" inputMode="tel" defaultValue={c.phone} />

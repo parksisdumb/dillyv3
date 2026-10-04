@@ -4,6 +4,7 @@ import { Bar, ErrorNote, SectionTitle, Stat } from "@/components/ui/bits";
 import { btn, cn } from "@/components/ui/styles";
 import { QueueItem, type QueueRow } from "@/components/today/queue-item";
 import { IconGo, IconStreak } from "@/components/icons";
+import type { PropertyBadge } from "@/lib/domain/badges-property";
 
 export type BriefLine = { kind?: string; text?: string };
 
@@ -18,6 +19,8 @@ export type TodayData = {
   goal: { label: string; target: number; count: number } | null;
   leaders: { user_id: string | null; full_name: string | null; touches: number | null; points: number | null }[];
   meId: string;
+  /** Badges by property id, for queue items that reference a building. */
+  badges?: Record<string, PropertyBadge[]>;
 };
 
 const BRIEF_KIND: Record<string, string> = { one_thing: "Focus", due: "Due", new: "New" };
@@ -109,7 +112,7 @@ export function TodayView({ d }: { d: TodayData }) {
               </SectionTitle>
               <ul className="divide-y divide-line border-y border-line bg-surface">
                 {g.rows.map((it, i) => (
-                  <QueueItem key={`${it.item_type}-${it.task_id ?? it.account_id}-${i}`} item={it} snoozeCount={it.task_id ? d.snoozes[it.task_id] ?? 0 : 0} />
+                  <QueueItem key={`${it.item_type}-${it.task_id ?? it.account_id}-${i}`} item={it} snoozeCount={it.task_id ? d.snoozes[it.task_id] ?? 0 : 0} badges={it.property_id ? d.badges?.[it.property_id] : undefined} />
                 ))}
               </ul>
             </section>

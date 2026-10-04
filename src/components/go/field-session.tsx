@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { logTouch } from "@/lib/actions/log";
+import { useLogTouch } from "@/components/log/use-log-touch";
 import { CHANNELS, OUTCOMES, PERSONA_ROLES, QUICK_OUTCOMES, type Channel, type Outcome, type PersonaRole } from "@/lib/domain/vocab";
 import { previewPoints, type PointRules } from "@/lib/domain/points";
 import { QuickContactForm } from "@/components/log/quick-contact-form";
@@ -11,6 +11,9 @@ import { btn, cn, input, labelText } from "@/components/ui/styles";
 import { IconCheck, IconDirections, IconList, IconPlus, IconSkip } from "@/components/icons";
 import { HideLogFab } from "@/components/log/log-provider";
 import type { Stop, StopContact } from "@/components/go/types";
+import { PropertyBadges } from "@/components/accounts/property-badges";
+import { ConditionToggles } from "@/components/accounts/condition-toggles";
+import { FIELD_FLAGS } from "@/lib/domain/badges-property";
 
 const FIELD_CHANNELS: Channel[] = ["site_visit", "door_knock", "roof_walk", "meeting"];
 
@@ -31,6 +34,7 @@ export function FieldSession({ stops: initial, points }: { stops: Stop[]; points
   const [list, setList] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const logTouch = useLogTouch(); // idempotent + never throws on lost signal
 
   if (stops.length === 0) {
     return (
@@ -133,6 +137,7 @@ export function FieldSession({ stops: initial, points }: { stops: Stop[]; points
           {stop.place && <div className="mt-1 font-semibold">{stop.place}</div>}
           <div className="text-base text-muted">{[stop.address, stop.city].filter(Boolean).join(", ")}</div>
           {stop.reason && <div className="mt-1 text-sm">{stop.reason}</div>}
+          {stop.badges && stop.badges.length > 0 && <PropertyBadges badges={stop.badges} max={3} className="mt-2" />}
 
           <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
             {stop.directions ? (
@@ -146,6 +151,13 @@ export function FieldSession({ stops: initial, points }: { stops: Stop[]; points
               <IconSkip size={22} /> Skip
             </button>
           </div>
+
+          {stop.propertyId && (
+            <section className="mt-4" aria-label="Flag a condition">
+              <div className={labelText}>Seen on the roof</div>
+              <ConditionToggles key={stop.propertyId} propertyId={stop.propertyId} active={stop.flags ?? []} flags={FIELD_FLAGS} size="lg" className="mt-2" label="Flag a condition" />
+            </section>
+          )}
 
           {/* Who I met */}
           <section className="mt-4">

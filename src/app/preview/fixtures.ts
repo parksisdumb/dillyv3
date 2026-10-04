@@ -15,6 +15,7 @@ import type { ContactOption, LogContextData } from "@/lib/actions/log-types";
 import type { ContactListRow, PropertyListRow } from "@/lib/server/book";
 import type { ContactDetailData } from "@/components/accounts/contact-detail-view";
 import type { PropertyDetailData } from "@/components/accounts/property-detail-view";
+import { propertyBadges } from "@/lib/domain/badges-property";
 
 const TZ = "America/Chicago";
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -159,6 +160,23 @@ export function fixtures() {
     },
   ];
 
+  queue.unshift({
+    item_type: "task",
+    task_id: id(100),
+    account_id: A.rpm,
+    contact_id: null,
+    opportunity_id: null,
+    property_id: id(401),
+    title: "Intro to new management at Riverside Apartments",
+    reason: "Riverside Apartments moved from Greystar — Austin to RPM Living — DFW",
+    due_on: today,
+    overdue_days: 0,
+    account_name: "RPM Living — DFW",
+    contact_name: null,
+    phone: "214-555-0199",
+    email: null,
+    icp_tier: 2,
+  });
   const todayData: TodayData = {
     brief: {
       headline: "Greystar’s $160K Riverside re-roof has sat 53 days in Proposal Sent. Call Dave before 10.",
@@ -181,6 +199,9 @@ export function fixtures() {
       { user_id: USERS.dylan, full_name: "Dylan Kreiser", touches: 22, points: 38 },
     ],
     meId: USERS.colby,
+    badges: {
+      [id(401)]: propertyBadges({ roof_system: "TPO", roof_install_year: 2009, warranty_expires_on: addDays(today, -400), active_flags: ["active_leak"], open_service_lines: ["re_roof"], management_changed_on: addDays(today, -21) }, today),
+    },
   };
 
   const accounts: AccountRowData[] = [
@@ -237,9 +258,25 @@ export function fixtures() {
       { id: id(503), occurred_at: daysAgo(16), channel: "site_visit", outcome: "gatekeeper", notes: "Maria at leasing gave me Luis’s cell. Dave is the decision maker.", who: "Kayla Smiley", contact: "Maria Chen", contact_id: id(207) },
     ],
     ownerName: "Colby Remedios",
+    propBadges: {
+      [id(401)]: propertyBadges({ roof_system: "TPO", roof_install_year: 2009, warranty_expires_on: addDays(today, -400), active_flags: ["active_leak"], open_service_lines: ["re_roof"], management_changed_on: addDays(today, -21) }, today),
+      [id(402)]: propertyBadges({ roof_system: "Mod-bit", roof_install_year: 2014, open_service_lines: ["repair"] }, today),
+      [id(403)]: propertyBadges({}, today),
+    },
+    past: [
+      { id: id(409), name: "Barton Creek Villas", role: "manager", started_on: "2019-04-01", ended_on: addDays(today, -60), now: "RPM Living — DFW" },
+      { id: id(410), name: "Mueller Station", role: "manager", started_on: null, ended_on: "2025-11-15", now: "Asset Living" },
+    ],
+    movePeople: [
+      { id: id(201), name: "Dave Morales", title: "Regional Facilities Director", persona_role: "economic_buyer", account_id: A.greystar, propertyIds: [id(401), id(402)] },
+      { id: id(206), name: "Luis Ortega", title: "Maintenance Supervisor, Riverside", persona_role: "user", account_id: A.greystar, propertyIds: [id(401)] },
+      { id: id(207), name: "Maria Chen", title: "Leasing Office", persona_role: "gatekeeper", account_id: A.greystar, propertyIds: [id(401)] },
+    ],
   };
 
+  const LINES: Record<number, string> = { 601: "inspection", 602: "emergency", 302: "repair", 603: "repair", 301: "re_roof", 604: "re_cover", 605: "maintenance" };
   const card = (n: number, name: string, acct: string, value: number, days: number, stalled: boolean, next: string | null, due: string | null) => ({
+    service_line: LINES[n] ?? null,
     id: id(n),
     name,
     account: acct,
@@ -389,6 +426,10 @@ export function fixtures() {
       fromQueue: false,
     },
   ];
+  austinStops[0].badges = propertyBadges({ roof_system: "Mod-bit", roof_install_year: 2008, active_flags: ["ponding"], open_service_lines: ["repair"], storm_kind: "hail", storm_at: daysAgo(3) }, today);
+  austinStops[0].flags = ["ponding"];
+  austinStops[1].badges = propertyBadges({ roof_system: "TPO", roof_install_year: 2009, active_flags: ["active_leak"], open_service_lines: ["re_roof"], management_changed_on: addDays(today, -21) }, today);
+  austinStops[1].flags = ["active_leak"];
   const cities = [
     { city: "Austin", total: 9, due: 3 },
     { city: "Round Rock", total: 4, due: 1 },
@@ -490,6 +531,21 @@ export function fixtures() {
     prow(408, "Oak Creek Retail Center", "8820 Burnet Rd", "Austin", null, null, null, null, null, null),
     prow(403, "The Domain Flats", "11400 Domain Dr", "Austin", A.greystar, "Greystar — Austin", null, null, null, 30),
   ];
+  const listExtra: Record<string, Parameters<typeof propertyBadges>[0]> = {
+    [id(401)]: { active_flags: ["active_leak"], open_service_lines: ["re_roof"], management_changed_on: addDays(today, -21), storm_kind: "hail", storm_at: daysAgo(3) },
+    [id(406)]: { open_service_lines: ["emergency"] },
+    [id(404)]: { active_flags: ["ponding"], open_service_lines: ["repair"] },
+    [id(407)]: { open_service_lines: ["re_cover"], ownership_changed_on: addDays(today, -40) },
+    [id(405)]: { storm_kind: "hail", storm_at: daysAgo(3) },
+    [id(402)]: { open_service_lines: ["repair"] },
+  };
+  for (const r of propertiesList) {
+    r.badges = propertyBadges({ ...listExtra[r.id], roof_system: r.roof_system, roof_install_year: r.roof_install_year, warranty_expires_on: r.warranty_expires_on }, today);
+    r.manager_name = r.account_name;
+  }
+  propertiesList[0].account_name = "RPM Living — DFW";
+  propertiesList[0].manager_name = "RPM Living — DFW";
+  propertiesList[3].owner_name = "Blackstone REIT";
   const propertyCities = [
     { city: "Austin", n: 212 },
     { city: "Dallas", n: 96 },
@@ -526,6 +582,12 @@ export function fixtures() {
     opps: [{ id: id(301), name: "Riverside — TPO re-roof, Bldgs A–F", stage: "proposal_sent", value_estimate: 160000, next_step: "Board vote follow-up", next_step_due: addDays(today, -4) }],
     timeline: account.timeline.filter((t) => t.contact_id === id(201)),
     daysSinceTouch: 4,
+    touchCount: 12,
+    oldCompanyBuildings: 2,
+    employment: [
+      { id: id(851), account_id: A.greystar, account_name: "Greystar — Austin", title: "Regional Facilities Director", started_on: "2023-02-01", ended_on: null, note: null },
+      { id: id(852), account_id: A.lincoln, account_name: "Lincoln Property Co", title: "Facilities Manager", started_on: null, ended_on: "2023-02-01", note: "Moved from Lincoln Property Co" },
+    ],
   };
 
   const propertyDetail: PropertyDetailData = {
@@ -556,6 +618,27 @@ export function fixtures() {
     opps: [{ id: id(301), name: "Riverside — TPO re-roof, Bldgs A–F", stage: "proposal_sent", value_estimate: 160000, next_step: "Board vote follow-up", next_step_due: addDays(today, -4) }],
     timeline: account.timeline.slice(0, 2),
     lastTouchAt: ago(4),
+    badge: { active_flags: ["active_leak", "ponding"], open_service_lines: ["re_roof"], management_changed_on: addDays(today, -21), storm_kind: "hail", storm_at: daysAgo(3) },
+    ownership: {
+      propertyId: id(401),
+      propertyName: "Riverside Apartments",
+      accountId: A.greystar,
+      today,
+      history: [
+        { id: id(801), role: "manager", account_id: A.lincoln, account_name: "Lincoln Property Co", started_on: null, ended_on: addDays(today, -21), source: "backfill", note: null },
+        { id: id(802), role: "manager", account_id: A.greystar, account_name: "Greystar — Austin", started_on: addDays(today, -21), ended_on: null, source: "transfer", note: "Luis says Greystar took over Sept 13; same on-site team." },
+        { id: id(803), role: "owner", account_id: id(20), account_name: "Blackstone REIT", started_on: "2021-06-01", ended_on: null, source: "rep", note: null },
+        { id: id(804), role: "owner", account_id: id(21), account_name: "Riverside Partners LP", started_on: null, ended_on: "2021-06-01", source: "backfill", note: null },
+      ],
+      people: [
+        { id: id(201), name: "Dave Morales", title: "Regional Facilities Director", persona_role: "economic_buyer", account_id: A.greystar },
+        { id: id(206), name: "Luis Ortega", title: "Maintenance Supervisor, Riverside", persona_role: "user", account_id: A.greystar },
+        { id: id(207), name: "Maria Chen", title: "Leasing Office", persona_role: "gatekeeper", account_id: A.greystar },
+        { id: id(208), name: "Tanya Brooks", title: "Community Manager", persona_role: "evaluator", account_id: A.greystar },
+      ],
+      opps: [{ id: id(301), account_id: A.greystar, stage: "proposal_sent", value_estimate: 160000, service_line: "re_roof" }],
+      touches: 41,
+    },
   };
   const propertyEmpty: PropertyDetailData = {
     ...propertyDetail,
@@ -566,6 +649,8 @@ export function fixtures() {
     opps: [],
     timeline: [],
     lastTouchAt: null,
+    badge: {},
+    ownership: { propertyId: id(408), propertyName: "Oak Creek Retail Center", accountId: null, today, history: [], people: [], opps: [], touches: 0 },
   };
 
   return { contactsList, propertiesList, propertyCities, contactDetail, propertyDetail, propertyEmpty, today, session, todayData, accounts, account, pipeline, team, approvals, me, austinStops, cities, focus, logData, logContacts, points: DEFAULT_POINTS };

@@ -10,6 +10,9 @@ import { TouchTimeline, type TimelineTouch } from "@/components/accounts/touch-t
 import { ContactEditForm } from "@/components/accounts/forms";
 import { LinkedList, OpenTasks, Opportunities, type LinkLite, type OppLite, type TaskLite } from "@/components/accounts/related";
 import { IconMail, IconPhone } from "@/components/icons";
+import { MoveContact, type MoveContactPreview } from "@/components/accounts/move-contact";
+import { tenureLabel } from "@/lib/domain/ownership";
+import type { EmploymentRow } from "@/lib/server/ownership";
 
 export type ContactDetailData = {
   today: string;
@@ -36,9 +39,12 @@ export type ContactDetailData = {
   opps: OppLite[];
   timeline: TimelineTouch[];
   daysSinceTouch: number | null;
+  employment?: EmploymentRow[];
+  touchCount?: number;
+  oldCompanyBuildings?: number;
 };
 
-export function ContactDetailView({ d }: { d: ContactDetailData }) {
+export function ContactDetailView({ d, movePreview }: { d: ContactDetailData; movePreview?: MoveContactPreview }) {
   const { c, account, today } = d;
   const phone = c.mobile ?? c.phone;
   return (
@@ -83,10 +89,42 @@ export function ContactDetailView({ d }: { d: ContactDetailData }) {
       {(phone || c.email) && (
         <div className="num px-4 pt-2 text-sm text-muted">{[phone, c.email].filter(Boolean).join(" · ")}</div>
       )}
+      <div className="px-4 pt-3">
+        <MoveContact
+          contactId={c.id}
+          name={c.full_name ?? "This contact"}
+          firstName={c.first_name ?? c.full_name ?? "They"}
+          title={c.title}
+          oldCompany={account?.label ?? null}
+          today={today}
+          touches={d.touchCount ?? d.timeline.length}
+          buildings={d.oldCompanyBuildings ?? 0}
+          preview={movePreview}
+        />
+      </div>
 
       <OpenTasks tasks={d.tasks} today={today} />
       <Opportunities opps={d.opps} today={today} newHref={c.account_id ? `/app/pipeline/new?account=${c.account_id}` : undefined} />
       <LinkedList kind="properties" selfId={c.id} links={d.properties} />
+
+      {d.employment && d.employment.length > 0 && (
+        <>
+          <SectionTitle>Work history</SectionTitle>
+          <ol className="divide-y divide-line border-y border-line bg-surface">
+            {d.employment.map((e) => (
+              <li key={e.id} className="flex items-baseline gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <Link href={`/app/accounts/${e.account_id}`} className="flex min-h-11 items-center truncate font-semibold">
+                    {e.account_name}
+                  </Link>
+                  <div className="truncate text-sm text-muted">{[e.title, tenureLabel(e.started_on, e.ended_on)].filter(Boolean).join(" · ")}</div>
+                </div>
+                {!e.ended_on && <Chip tone="good">Current</Chip>}
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
 
       <SectionTitle>Timeline</SectionTitle>
       {d.timeline.length === 0 ? <Empty title="No touches yet">Log the first one — it sets the follow-up.</Empty> : <TouchTimeline touches={d.timeline} />}

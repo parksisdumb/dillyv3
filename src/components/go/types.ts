@@ -1,3 +1,5 @@
+import type { PropertyBadge } from "@/lib/domain/badges-property";
+
 export type StopContact = { id: string; name: string; title: string | null; role: string };
 
 export type Stop = {
@@ -12,6 +14,8 @@ export type Stop = {
   directions: string | null;
   contacts: StopContact[];
   fromQueue: boolean;
+  badges?: PropertyBadge[];
+  flags?: string[];
 };
 
 export type FocusItem = {

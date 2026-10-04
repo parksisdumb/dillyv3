@@ -10,7 +10,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:reset": "./scripts/local/reset-db.sh",
-    "db:types": "tsx scripts/gen-types.ts"
+    "db:types": "tsx scripts/gen-types.ts",
+    "e2e": "playwright test",
+    "e2e:seed": "tsx scripts/e2e/seed.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
@@ -26,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "1.56.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",

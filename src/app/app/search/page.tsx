@@ -6,13 +6,15 @@ import { PERSONA_ROLES, type PersonaRole } from "@/lib/domain/vocab";
 import { SectionTitle, StateChip, TierPill } from "@/components/ui/bits";
 import { input } from "@/components/ui/styles";
 import { IconBuilding, IconSearch, IconUser } from "@/components/icons";
+import { propertyBadges } from "@/lib/domain/badges-property";
+import { PropertyBadges } from "@/components/accounts/property-badges";
 
 export const metadata: Metadata = { title: "Search" };
 
 export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
   const { q: raw } = await searchParams;
   const q = cleanQuery(raw);
-  const { sb, tenantId } = await ctx();
+  const { sb, tenantId, today } = await ctx();
 
   const [accounts, contacts, properties] =
     q.length >= 2
@@ -32,8 +34,8 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             .or(`full_name.ilike.%${q}%,email.ilike.%${q}%,title.ilike.%${q}%,phone.ilike.%${q}%,mobile.ilike.%${q}%`)
             .limit(10),
           sb
-            .from("property")
-            .select("id,name,address1,city,account_id")
+            .from("property_current")
+            .select("id,name,address1,city,account_id,current_manager_name,roof_system,roof_install_year,warranty_expires_on,active_flags,open_service_lines,management_changed_on,ownership_changed_on,storm_kind,storm_at")
             .eq("tenant_id", tenantId)
             .is("duplicate_of", null)
             .or(`name.ilike.%${q}%,address1.ilike.%${q}%,city.ilike.%${q}%`)
@@ -103,11 +105,12 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           <ul className="divide-y divide-line border-y border-line bg-surface">
             {properties.data.map((p) => (
               <li key={p.id}>
-                <Link href={`/app/properties/${p.id}`} className="flex min-h-14 items-center gap-3 px-4 py-2 hover:bg-surface-2">
-                  <IconBuilding size={20} className="text-muted" />
+                <Link href={`/app/properties/${p.id}`} className="flex min-h-14 items-start gap-3 px-4 py-2 hover:bg-surface-2">
+                  <IconBuilding size={20} className="mt-0.5 shrink-0 text-muted" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-semibold">{p.name || p.address1}</span>
-                    <span className="block truncate text-sm text-muted">{[p.address1, p.city].filter(Boolean).join(", ")}</span>
+                    <span className="block truncate text-sm text-muted">{[p.address1, p.city, p.current_manager_name].filter(Boolean).join(", ")}</span>
+                    <PropertyBadges badges={propertyBadges(p, today)} max={3} className="mt-1" />
                   </span>
                 </Link>
               </li>

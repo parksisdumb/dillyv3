@@ -7,6 +7,7 @@ import { FieldSession } from "@/components/go/field-session";
 import { FocusSession } from "@/components/go/focus-session";
 import type { FocusItem, Stop } from "@/components/go/types";
 import type { QueueRow } from "@/components/today/queue-item";
+import { propertyBadges } from "@/lib/domain/badges-property";
 
 export const metadata: Metadata = { title: "Go" };
 
@@ -15,7 +16,8 @@ const MAX_STOPS = 15;
 export default async function GoPage({ searchParams }: { searchParams: Promise<{ mode?: string; city?: string }> }) {
   const sp = await searchParams;
   const mode = sp.mode === "focus" ? "focus" : "field";
-  const { sb, s, tenantId } = await ctx();
+  const c = await ctx();
+  const { sb, s, tenantId } = c;
 
   const [queueRes, mineRes, rulesRes] = await Promise.all([
     sb.rpc("rep_queue", { p_tenant: tenantId, p_user: s.userId }),
@@ -119,6 +121,23 @@ export default async function GoPage({ searchParams }: { searchParams: Promise<{
     .filter((x) => x.city === city)
     .sort((a, b) => Number(b.fromQueue) - Number(a.fromQueue) || (a.tier ?? 3) - (b.tier ?? 3) || (a.address ?? "").localeCompare(b.address ?? ""))
     .slice(0, MAX_STOPS);
+
+  // Badges + condition flags for today's buildings (the field is where reps see and set them).
+  const propIds = todays.map((x) => x.propertyId).filter((x): x is string => !!x);
+  if (propIds.length) {
+    const { data: cur } = await sb
+      .from("property_current")
+      .select("id,roof_system,roof_install_year,warranty_expires_on,active_flags,open_service_lines,management_changed_on,ownership_changed_on,storm_kind,storm_at")
+      .in("id", propIds);
+    const byId = new Map((cur ?? []).map((r) => [r.id, r]));
+    for (const st of todays) {
+      const r = st.propertyId ? byId.get(st.propertyId) : undefined;
+      if (r) {
+        st.badges = propertyBadges(r, c.today);
+        st.flags = r.active_flags ?? [];
+      }
+    }
+  }
 
   return (
     <div>

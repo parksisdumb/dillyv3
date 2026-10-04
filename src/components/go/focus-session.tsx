@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { logTouch } from "@/lib/actions/log";
+import { useLogTouch } from "@/components/log/use-log-touch";
 import { OUTCOMES, QUICK_OUTCOMES, type Outcome } from "@/lib/domain/vocab";
 import { CONNECT_OUTCOMES, previewPoints, type PointRules } from "@/lib/domain/points";
 import { TierPill } from "@/components/ui/bits";
@@ -21,6 +21,7 @@ export function FocusSession({ items: initial, points }: { items: FocusItem[]; p
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const logTouch = useLogTouch(); // idempotent + never throws on lost signal
 
   if (items.length === 0) {
     return (

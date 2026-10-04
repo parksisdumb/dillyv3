@@ -74,8 +74,21 @@ export class LlmUnavailableError extends Error {
   }
 }
 
+/**
+ * Per-request timeout for LLM calls. The SDK default is 10 minutes × 3 attempts, which would outlive the
+ * 300 s serverless budget of /api/inngest. With 30 s × (1 + 1 retry) a brief's write+grade stays ≈2 min worst
+ * case, and on an Anthropic outage the brief falls back to the deterministic template instead of hanging.
+ */
+export const LLM_TIMEOUT_MS = 30_000;
+export const LLM_MAX_RETRIES = 1;
+
+function llmTimeoutMs(): number {
+  const n = Number(process.env.DILLY_LLM_TIMEOUT_MS);
+  return Number.isFinite(n) && n >= 5_000 ? n : LLM_TIMEOUT_MS;
+}
+
 export function anthropicTransport(apiKey: string): LlmTransport {
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey, timeout: llmTimeoutMs(), maxRetries: LLM_MAX_RETRIES });
   return async ({ model, system, messages, maxTokens }) => {
     const res = await client.messages.create({ model, system, messages, max_tokens: maxTokens });
     const text = res.content

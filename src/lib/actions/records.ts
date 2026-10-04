@@ -93,7 +93,10 @@ export async function saveProperty(_: ActionState, fd: FormData): Promise<Action
     notes: v.notes ?? null,
   };
   if (id) {
-    const { error } = await sb.from("property").update(row).eq("tenant_id", tenantId).eq("id", id);
+    // Who owns / manages the building changes only through the Ownership section (transfer_property keeps history).
+    const { account_id: _ignored, ...facts } = row;
+    void _ignored;
+    const { error } = await sb.from("property").update(facts).eq("tenant_id", tenantId).eq("id", id);
     if (error) return { ok: false, error: dbMessage(error, "save the property") };
   } else {
     const norm = normalizeAddress(v.address1, v.city);

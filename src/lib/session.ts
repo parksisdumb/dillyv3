@@ -29,12 +29,18 @@ export const getSession = cache(async (): Promise<Session> => {
   const sb = await supabaseServer();
   const {
     data: { user },
+    error: authError,
   } = await sb.auth.getUser();
-  if (!user) redirect("/login");
+  if (!user) {
+    // Auth unreachable ≠ signed out: send them to the offline notice instead of a bare login form.
+    const e = authError as { name?: string; status?: number } | null;
+    const offline = !!e && (e.name === "AuthRetryableFetchError" || e.status === 0 || (e.status ?? 0) >= 500);
+    redirect(offline ? "/login?offline=1" : "/login");
+  }
 
   await sb.rpc("claim_invites");
 
-  const [{ data: profile }, { data: memberships }] = await Promise.all([
+  const [{ data: profile }, { data: memberships, error: membershipError }] = await Promise.all([
     sb.from("profile").select("id,email,full_name,is_platform_admin").eq("id", user.id).single(),
     sb.from("membership").select("role, tenant:tenant_id(id,slug,name,timezone)").eq("user_id", user.id).eq("active", true),
   ]);
@@ -51,6 +57,8 @@ export const getSession = cache(async (): Promise<Session> => {
     const have = new Set(tenants.map((t) => t.id));
     tenants = tenants.concat((all ?? []).filter((t) => !have.has(t.id)).map((t) => ({ ...t, role: "owner" as Role })));
   }
+  // A failed lookup is an outage, not "no access": throw so the error screen offers Try again.
+  if (membershipError) throw new Error(`Couldn't load your company: ${membershipError.message}`);
   if (tenants.length === 0) redirect("/no-access");
 
   const store = await cookies();

@@ -5,6 +5,7 @@ import { PERSONA_ROLES } from "@/lib/domain/vocab";
 import { ageBandYears, daysSince, isGoingQuiet, type AgeBand } from "@/lib/domain/book";
 import { duplicateGroups } from "@/lib/domain/dupes";
 import { addDays } from "@/lib/format";
+import { propertyBadges, type PropertyBadge } from "@/lib/domain/badges-property";
 
 /** Run an `.in()` query in chunks so long id lists don't blow the URL length. */
 async function inChunks<T>(ids: string[], run: (chunk: string[]) => PromiseLike<{ data: T[] | null }>, size = 100): Promise<T[]> {
@@ -142,6 +143,9 @@ export type PropertyListRow = {
   last_touch_at: string | null;
   days: number | null;
   incomplete: boolean;
+  manager_name?: string | null;
+  owner_name?: string | null;
+  badges?: PropertyBadge[];
 };
 
 export async function loadProperties(
@@ -153,8 +157,10 @@ export async function loadProperties(
   const term = cleanQuery(sp.q);
   const preset = sp.stale === "1";
   let q = sb
-    .from("property")
-    .select("id,name,address1,city,account_id,roof_system,roof_install_year,roof_area_sf,warranty_expires_on")
+    .from("property_current")
+    .select(
+      "id,name,address1,city,account_id,roof_system,roof_install_year,roof_area_sf,warranty_expires_on,current_manager_name,current_owner_name,active_flags,open_service_lines,management_changed_on,ownership_changed_on,storm_kind,storm_at",
+    )
     .eq("tenant_id", tenantId)
     .is("duplicate_of", null)
     .eq("is_test", false);
@@ -195,7 +201,7 @@ export async function loadProperties(
     .sort((a, b) => b.n - a.n)
     .slice(0, 8);
 
-  let rows = (data ?? []).filter((r) => !mine || (r.account_id && mine.has(r.account_id)));
+  let rows = (data ?? []).flatMap((r) => (r.id && (!mine || (r.account_id && mine.has(r.account_id))) ? [{ ...r, id: r.id }] : []));
   const ids = rows.map((r) => r.id);
   const [touches, opps, accts] = await Promise.all([
     inChunks(ids, (ch) => sb.from("touch").select("property_id,occurred_at").eq("tenant_id", tenantId).in("property_id", ch).is("voided_at", null).order("occurred_at", { ascending: false }).limit(2000)),
@@ -244,6 +250,9 @@ export async function loadProperties(
       last_touch_at: last.get(r.id) ?? null,
       days: daysSince(last.get(r.id), now),
       incomplete: !r.roof_system || !r.address1 || r.roof_area_sf == null,
+      manager_name: r.current_manager_name,
+      owner_name: r.current_owner_name,
+      badges: propertyBadges(r, today),
     })),
   };
 }

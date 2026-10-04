@@ -6,8 +6,12 @@ import { revalidatePath } from "next/cache";
 import { supabaseServer } from "@/lib/supabase/server";
 import { getSession, TENANT_COOKIE } from "@/lib/session";
 import type { ActionState } from "@/lib/actions/state";
+import { safeNext } from "@/lib/server/safe-next";
+import { log } from "@/lib/observability/log";
 
-const safeNext = (n: string | undefined | null) => (n && n.startsWith("/") && !n.startsWith("//") ? n : "/app/today");
+const OFFLINE = "Can't reach the server. Check your signal and try again.";
+const unreachable = (e: { name?: string; status?: number }) =>
+  e.name === "AuthRetryableFetchError" || e.status === 0 || (typeof e.status === "number" && e.status >= 500);
 
 const signInSchema = z.object({
   email: z.string().trim().email("Enter a valid email"),
@@ -20,7 +24,11 @@ export async function signInWithPassword(_: ActionState, fd: FormData): Promise<
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the form." };
   const sb = await supabaseServer();
   const { error } = await sb.auth.signInWithPassword({ email: parsed.data.email, password: parsed.data.password });
-  if (error) return { ok: false, error: error.message === "Invalid login credentials" ? "Wrong email or password." : error.message };
+  if (error) {
+    if (error.message === "Invalid login credentials") return { ok: false, error: "Wrong email or password." };
+    log.warn("auth:sign-in-failed", { err: error });
+    return { ok: false, error: unreachable(error) ? OFFLINE : error.message };
+  }
   redirect(safeNext(parsed.data.next));
 }
 
@@ -30,9 +38,10 @@ export async function sendMagicLink(_: ActionState, fd: FormData): Promise<Actio
   const parsed = magicSchema.safeParse({ email: fd.get("email"), next: fd.get("next") ?? undefined });
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Enter a valid email." };
   const h = await headers();
+  // Configured app URL first: the Origin header is client-controlled.
   const origin =
-    h.get("origin") ??
     process.env.NEXT_PUBLIC_APP_URL ??
+    h.get("origin") ??
     `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host")}`;
   const sb = await supabaseServer();
   const { error } = await sb.auth.signInWithOtp({
@@ -42,7 +51,10 @@ export async function sendMagicLink(_: ActionState, fd: FormData): Promise<Actio
       shouldCreateUser: true,
     },
   });
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    log.warn("auth:magic-link-failed", { err: error });
+    return { ok: false, error: unreachable(error) ? OFFLINE : error.message };
+  }
   return { ok: true, message: `Link sent to ${parsed.data.email}. Open it on this phone.` };
 }
 

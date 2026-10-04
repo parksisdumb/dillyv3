@@ -27,6 +27,15 @@ Spec lives in the "Go To Market System/App" project (`gtm-agent-system/00-ARCHIT
 6. **Sign in** as `team@dillyos.com` or `parks@foxroofing.co` → you're platform admin and see both tenants. FOX reps sign in with their foxroofing.co emails and land in FOX automatically (invites seeded from the V2 roster).
 7. **Migrate FOX data**: follow `migration/README.md` (dump → discover → confirm the column map → restore → transform → reconcile).
 
+## Production operations
+
+- **Runbook**: [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — deploy steps, env checklist, rollback, outages, pre-launch checklist.
+- **Uptime monitor URL**: `https://<your-app>/api/health` (Vercel Monitoring, UptimeRobot or Better Stack; 1-min checks).
+  Returns `200 {"ok":true,"version":"<git sha>","db":{"ok":true,"latencyMs":…},"auth":{"ok":true,…}}`, or `503` when the
+  database or auth is unreachable. No secrets in the response; excluded from auth middleware.
+- **Logs**: structured JSON (`src/lib/observability/log.ts`), one line per event, with `requestId` (also the `x-request-id`
+  response header). Filter Vercel logs by `level:error`.
+
 ## Local development
 
 ```bash

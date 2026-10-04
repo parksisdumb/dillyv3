@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { loadLogContext, logTouch } from "@/lib/actions/log";
+import { loadLogContext } from "@/lib/actions/log";
+import { useLogTouch } from "@/components/log/use-log-touch";
 import type { ContactOption, LogContextData, LogTarget } from "@/lib/actions/log-types";
 import { CHANNELS, OUTCOMES, PERSONA_ROLES, PRIMARY_CHANNELS, QUICK_OUTCOMES, type Channel, type Outcome, type PersonaRole } from "@/lib/domain/vocab";
 import { previewPoints } from "@/lib/domain/points";
@@ -46,6 +47,7 @@ export function LogSheet({
   const [opportunityId, setOpportunityId] = useState(target.opportunityId ?? "");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const logTouch = useLogTouch(); // idempotent + never throws on lost signal
 
   const load = (t: LogTarget, preferContact?: ContactOption | null) =>
     loadLogContext(t)

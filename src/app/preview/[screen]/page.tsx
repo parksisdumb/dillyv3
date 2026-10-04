@@ -20,7 +20,7 @@ import { PreviewLogSheet, PreviewToast } from "@/app/preview/preview-client";
 
 export const dynamic = "force-dynamic";
 
-// Screens: contacts, properties, properties-stale, contact, property, property-empty, today, go, go-focus, accounts, account, log-1, log-2, log-3, log-toast, pipeline, team, approvals, me
+// Screens: property-transfer-1..3, account-move, contact-move, contacts, properties, properties-stale, contact, property, property-empty, today, go, go-focus, accounts, account, log-1, log-2, log-3, log-toast, pipeline, team, approvals, me
 
 export default async function PreviewPage({ params }: { params: Promise<{ screen: string }> }) {
   if (process.env.DILLY_PREVIEW !== "1") notFound();
@@ -111,6 +111,27 @@ export default async function PreviewPage({ params }: { params: Promise<{ screen
     case "property":
       active = "/app/properties";
       body = <PropertyDetailView d={f.propertyDetail} />;
+      break;
+    case "property-transfer-1":
+    case "property-transfer-2":
+    case "property-transfer-3": {
+      active = "/app/properties";
+      const step = Number(screen.slice(-1)) as 1 | 2 | 3;
+      body = <PropertyDetailView d={f.propertyDetail} preview={{ role: "manager", step, account: step > 1 ? { id: "00000000-0000-4000-8000-000000000002", label: "RPM Living — DFW", sub: "P2 · Plano" } : null }} />;
+      break;
+    }
+    case "account-move":
+      active = "/app/accounts";
+      body = (
+        <AccountDetailView
+          d={f.account}
+          movePreview={{ step: 4, selected: f.account.props.slice(0, 2).map((p) => p.id), role: "manager", account: { id: "00000000-0000-4000-8000-000000000002", label: "RPM Living — DFW", sub: "P2 · Plano" } }}
+        />
+      );
+      break;
+    case "contact-move":
+      active = "/app/contacts";
+      body = <ContactDetailView d={f.contactDetail} movePreview={{ step: 2, account: { id: "00000000-0000-4000-8000-000000000004", label: "Lincoln Property Co", sub: "P1 · Dallas" }, title: "VP Facilities" }} />;
       break;
     case "property-empty":
       active = "/app/properties";

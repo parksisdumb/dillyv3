@@ -10,6 +10,10 @@ import { TouchTimeline, type TimelineTouch } from "@/components/accounts/touch-t
 import { PropertyForm } from "@/components/accounts/forms";
 import { LinkedList, OpenTasks, Opportunities, type LinkLite, type OppLite, type TaskLite } from "@/components/accounts/related";
 import { IconDirections, IconEdit } from "@/components/icons";
+import { DETAIL_FLAGS, propertyBadges, type PropertyBadgeInput } from "@/lib/domain/badges-property";
+import { PropertyBadges } from "@/components/accounts/property-badges";
+import { ConditionToggles } from "@/components/accounts/condition-toggles";
+import { OwnershipSection, type OwnershipData, type TransferPreview } from "@/components/accounts/ownership";
 
 export type PropertyDetailData = {
   today: string;
@@ -36,6 +40,9 @@ export type PropertyDetailData = {
   opps: OppLite[];
   timeline: TimelineTouch[];
   lastTouchAt: string | null;
+  /** property_current columns that drive badges (flags, open job types, storm, management change). */
+  badge: Omit<PropertyBadgeInput, "roof_system" | "roof_install_year" | "warranty_expires_on">;
+  ownership: OwnershipData;
 };
 
 function Fact({ label, value, sub, tone }: { label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: "warn" | "bad" | "muted" }) {
@@ -48,13 +55,14 @@ function Fact({ label, value, sub, tone }: { label: string; value: React.ReactNo
   );
 }
 
-export function PropertyDetailView({ d }: { d: PropertyDetailData }) {
+export function PropertyDetailView({ d, preview }: { d: PropertyDetailData; preview?: TransferPreview }) {
   const { p, today } = d;
   const age = roofAge(p.roof_install_year, d.year);
   const warrantyDays = p.warranty_expires_on ? daysBetween(today, p.warranty_expires_on) : null;
   const hasFacts = !!(p.roof_system || p.roof_area_sf || p.roof_install_year || p.warranty_expires_on || p.building_count);
   const directions = mapsUrl([p.address1, p.city, p.state]);
   const lastDays = d.lastTouchAt ? daysBetween(d.lastTouchAt.slice(0, 10), today) : null;
+  const badges = propertyBadges({ ...d.badge, roof_system: p.roof_system, roof_install_year: p.roof_install_year, warranty_expires_on: p.warranty_expires_on }, today);
 
   return (
     <div>
@@ -70,6 +78,7 @@ export function PropertyDetailView({ d }: { d: PropertyDetailData }) {
         )}
         <span className="text-muted"> · {quietLabel(lastDays, d.lastTouchAt)}</span>
       </div>
+      <PropertyBadges badges={badges} className="px-4 pb-2" />
       <div className="flex gap-2 px-4 pt-1">
         <LogButton target={{ propertyId: p.id, accountId: p.account_id }} variant="primary" className="flex-1" label="Log at this building" />
         {directions && (
@@ -78,6 +87,13 @@ export function PropertyDetailView({ d }: { d: PropertyDetailData }) {
           </a>
         )}
       </div>
+
+      <section className="px-4 pt-3" aria-label="Condition">
+        <div className="label pb-1.5 text-xs text-muted">Condition · tap to flag</div>
+        <ConditionToggles propertyId={p.id} active={d.badge.active_flags ?? []} flags={DETAIL_FLAGS} collapsed={5} />
+      </section>
+
+      <OwnershipSection d={d.ownership} preview={preview} />
 
       <SectionTitle
         action={
@@ -133,7 +149,7 @@ export function PropertyDetailView({ d }: { d: PropertyDetailData }) {
 
       <SectionTitle>Building & roof details</SectionTitle>
       <div id="edit" className="scroll-mt-16">
-        <PropertyForm p={p} account={d.account} />
+        <PropertyForm p={p} />
       </div>
     </div>
   );

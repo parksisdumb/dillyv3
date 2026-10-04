@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Chip } from "@/components/ui/bits";
 import { dueLabel, lateLabel, money, daysBetween } from "@/lib/format";
 import { cn } from "@/components/ui/styles";
+import { serviceLineBadge } from "@/lib/domain/badges-property";
+import { BadgeChip } from "@/components/accounts/property-badges";
 
 export type OppCardData = {
   id: string;
@@ -12,10 +14,12 @@ export type OppCardData = {
   stalled: boolean;
   next_step: string | null;
   next_step_due: string | null;
+  service_line?: string | null;
 };
 
 export function OppCard({ o, today, compact = false }: { o: OppCardData; today: string; compact?: boolean }) {
   const late = o.next_step_due && o.next_step_due < today ? daysBetween(o.next_step_due, today) : 0;
+  const type = serviceLineBadge(o.service_line);
   return (
     <Link
       href={`/app/pipeline/${o.id}`}
@@ -34,6 +38,7 @@ export function OppCard({ o, today, compact = false }: { o: OppCardData; today: 
       )}
       {o.account && <div className="truncate text-sm text-muted">{o.account}</div>}
       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+        {type && <BadgeChip b={type} />}
         <span className="num text-muted">{o.daysInStage}d in stage</span>
         {o.stalled && <Chip tone="warn">Stalled</Chip>}
       </div>

@@ -5,6 +5,8 @@ import { TaskActions } from "@/components/today/task-actions";
 import { IconChevronRight, IconMail, IconPhone } from "@/components/icons";
 import { lateLabel } from "@/lib/format";
 import { cn } from "@/components/ui/styles";
+import type { PropertyBadge } from "@/lib/domain/badges-property";
+import { PropertyBadges } from "@/components/accounts/property-badges";
 
 export type QueueRow = {
   item_type: string | null;
@@ -26,7 +28,7 @@ export type QueueRow = {
 
 const iconBtn = "inline-flex size-12 shrink-0 items-center justify-center rounded-lg border-2 border-line bg-surface hover:border-ink";
 
-export function QueueItem({ item, snoozeCount }: { item: QueueRow; snoozeCount: number }) {
+export function QueueItem({ item, snoozeCount, badges }: { item: QueueRow; snoozeCount: number; badges?: PropertyBadge[] }) {
   const late = item.overdue_days ?? 0;
   const head = (
     <div className="flex items-start gap-3">
@@ -43,6 +45,7 @@ export function QueueItem({ item, snoozeCount }: { item: QueueRow; snoozeCount: 
             <span className="text-muted">{item.reason}</span>
           </div>
         )}
+        {badges && badges.length > 0 && <PropertyBadges badges={badges} max={3} className="mt-1.5" />}
       </div>
       {item.account_id && <IconChevronRight size={20} className="mt-0.5 shrink-0 text-muted" />}
     </div>

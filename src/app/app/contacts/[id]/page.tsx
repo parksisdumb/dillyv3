@@ -4,6 +4,7 @@ import { ctx } from "@/lib/server/ctx";
 import { TOUCH_COLS, withNames } from "@/lib/server/timeline";
 import { daysSince } from "@/lib/domain/book";
 import { ContactDetailView } from "@/components/accounts/contact-detail-view";
+import { loadEmployment } from "@/lib/server/ownership";
 
 export const metadata: Metadata = { title: "Contact" };
 
@@ -27,7 +28,11 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
     sb.from("touch").select(TOUCH_COLS).eq("tenant_id", tenantId).eq("contact_id", id).order("occurred_at", { ascending: false }).limit(40),
   ]);
   const propIds = (links.data ?? []).map((l) => l.property_id);
-  const { data: props } = propIds.length ? await sb.from("property").select("id,name,address1,city").in("id", propIds) : { data: [] };
+  const [{ data: props }, employment, touchCount] = await Promise.all([
+    propIds.length ? sb.from("property").select("id,name,address1,city,account_id").in("id", propIds) : Promise.resolve({ data: [] as { id: string; name: string | null; address1: string | null; city: string | null; account_id: string | null }[] }),
+    loadEmployment(c, id),
+    sb.from("touch").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("contact_id", id).is("voided_at", null),
+  ]);
   const pm = new Map((props ?? []).map((x) => [x.id, x]));
 
   return (
@@ -44,6 +49,9 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
         opps: opps.data ?? [],
         timeline: await withNames(c, touches.data ?? []),
         daysSinceTouch: daysSince(p.last_touch_at, new Date()),
+        employment,
+        touchCount: touchCount.count ?? 0,
+        oldCompanyBuildings: p.account_id ? (props ?? []).filter((x) => x.account_id === p.account_id).length : 0,
       }}
     />
   );
