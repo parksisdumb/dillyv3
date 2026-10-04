@@ -10,7 +10,7 @@ tables as (
 ),
 cols as (
   select t.relname, a.attnum, a.attname,
-         format_type(a.atttypid, a.atttypmod) as typ, a.attnotnull as notnull,
+         format_type(a.atttypid, a.atttypmod) as typ, a.attnotnull as is_notnull,
          pg_get_expr(d.adbin, d.adrelid) as dflt
     from tables t join pg_attribute a on a.attrelid = t.oid and a.attnum > 0 and not a.attisdropped
     left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
@@ -18,7 +18,7 @@ cols as (
 lines as (
   select 1 as s, relname as k, 0 as o, 'TABLE ' || relname || ' — ' || n || ' rows' as line from tables
   union all
-  select 2, relname, attnum, '  ' || relname || '.' || attname || ' ' || typ || case when notnull then ' NOT NULL' else '' end
+  select 2, relname, attnum, '  ' || relname || '.' || attname || ' ' || typ || case when is_notnull then ' NOT NULL' else '' end
          || coalesce(' DEFAULT ' || dflt, '') from cols
   union all
   select 3, conrelid::regclass::text, 0, '  CONSTRAINT ' || conrelid::regclass::text || ' ' || conname || ': ' || pg_get_constraintdef(oid)
