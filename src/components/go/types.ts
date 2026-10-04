@@ -16,6 +16,11 @@ export type Stop = {
   fromQueue: boolean;
   badges?: PropertyBadge[];
   flags?: string[];
+  /** Building pin (property.lat/lng, geocoded from the address). */
+  lat?: number | null;
+  lng?: number | null;
+  /** "123 Main St, Austin, TX" for Google Maps. */
+  mapsAddress?: string | null;
 };
 
 export type FocusItem = {

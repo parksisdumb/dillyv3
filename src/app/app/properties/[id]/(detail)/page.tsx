@@ -6,6 +6,7 @@ import { ctx } from "@/lib/server/ctx";
 import { TOUCH_COLS, withNames } from "@/lib/server/timeline";
 import { loadPartyHistory } from "@/lib/server/ownership";
 import { PropertyDetailView } from "@/components/accounts/property-detail-view";
+import { loadPropertyPhotos } from "@/lib/server/photos";
 
 export const metadata: Metadata = { title: "Property" };
 
@@ -16,7 +17,7 @@ async function PropertyPageBody({ params }: { params: Promise<{ id: string }> })
   const { sb, tenantId, today } = c;
   const { data: p } = await sb.from("property_current").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
   if (!p || !p.id) notFound();
-  const [acct, links, tasks, opps, touches, touchCount, history] = await Promise.all([
+  const [acct, links, tasks, opps, touches, touchCount, history, photos] = await Promise.all([
     p.account_id ? sb.from("account").select("id,name,city").eq("id", p.account_id).maybeSingle() : Promise.resolve({ data: null }),
     sb.from("property_contact").select("contact_id,role").eq("tenant_id", tenantId).eq("property_id", id),
     sb.from("task").select("id,title,due_on,reason").eq("tenant_id", tenantId).eq("property_id", id).eq("status", "open").order("due_on"),
@@ -29,6 +30,7 @@ async function PropertyPageBody({ params }: { params: Promise<{ id: string }> })
     sb.from("touch").select(TOUCH_COLS).eq("tenant_id", tenantId).eq("property_id", id).order("occurred_at", { ascending: false }).limit(40),
     sb.from("touch").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("property_id", id).is("voided_at", null),
     loadPartyHistory(c, { propertyId: id }),
+    loadPropertyPhotos(c, id).catch(() => []),
   ]);
   const ids = (links.data ?? []).map((l) => l.contact_id);
   const { data: people } = ids.length ? await sb.from("contact").select("id,full_name,title,persona_role,account_id").in("id", ids) : { data: [] };
@@ -65,6 +67,7 @@ async function PropertyPageBody({ params }: { params: Promise<{ id: string }> })
         opps: opps.data ?? [],
         timeline: await withNames(c, touches.data ?? []),
         lastTouchAt: touches.data?.[0]?.occurred_at ?? null,
+        photos,
         badge: {
           active_flags: p.active_flags,
           open_service_lines: p.open_service_lines,

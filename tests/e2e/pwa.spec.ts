@@ -37,11 +37,12 @@ test.describe("installable app", () => {
     expect(res.headers()["cache-control"]).toContain("no-cache");
   });
 
-  test("/offline renders without signing in and says logging needs signal", async ({ page }) => {
+  test("/offline renders without signing in and explains queued logging", async ({ page }) => {
     const res = await page.goto("/offline");
     expect(res?.status()).toBe(200);
     await expect(page.getByRole("heading", { level: 1, name: "No signal." })).toBeVisible();
-    await expect(page.getByText(/logging a touch needs signal/)).toBeVisible();
+    await expect(page.getByText(/Logging still works without signal/)).toBeVisible();
+    await expect(page.getByText(/saved on this phone and send by themselves/)).toBeVisible();
     await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
   });
 

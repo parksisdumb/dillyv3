@@ -161,3 +161,11 @@ export function dayStartISO(day: string, timeZone: string): string {
   const off = tzOffsetMinutes(timeZone, new Date(utcMidnight + 12 * 3600_000));
   return new Date(utcMidnight - off * 60000).toISOString();
 }
+
+/** "2:14 PM" (or "Oct 3, 2:14 PM" when not today) in the phone's own zone — for things the phone itself recorded. */
+export function timeOfDay(iso: string, now: Date = new Date()): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return d.toDateString() === now.toDateString() ? time : `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${time}`;
+}

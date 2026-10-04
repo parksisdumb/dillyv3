@@ -30,7 +30,7 @@ The goal: **the app does not go down**, and when a dependency does, reps see a c
    - `curl -s https://<app>/api/health` → `200` and `"ok":true`, `version` = the commit you shipped.
    - Sign in → Today renders with the queue → log one touch → toast shows points.
    - Accounts, Go, Pipeline open; Team opens for a manager.
-5. **Inngest**: Inngest dashboard → Apps → *dilly* → "Resync" if functions changed; confirm the functions are listed (7 at launch: 5 + `mail-sync-fanout`, `mail-sync-run`).
+5. **Inngest**: Inngest dashboard → Apps → *dilly* → "Resync" if functions changed; confirm the functions are listed (5 + `mail-sync-fanout`, `mail-sync-run`, `geocode-properties`).
 
 ## 2. Environment variables
 
@@ -49,7 +49,10 @@ Empty values are treated as unset (they never crash boot).
 | `DILLY_SUPABASE_TIMEOUT_MS` | optional, default 8000 | Per-attempt DB timeout |
 | `DILLY_LLM_TIMEOUT_MS` | optional, default 30000 | Per-call Anthropic timeout |
 | `LOG_LEVEL` | optional, default `info` | — |
-| `SENTRY_DSN` | **TODO**, not wired | See `src/lib/observability/log.ts` (`setErrorReporter`) |
+| `SENTRY_DSN` | **TODO**, not wired | See `src/lib/observability/log.ts` (`setErrorReporter`). Browser errors already reach the logs (`msg:client:error`, §12) |
+| `STORAGE_DRIVER` | Photos + card scans (§12). `supabase` (default) or `local` (dev/e2e only — never on Vercel) | Defaults to Supabase Storage, bucket `media` |
+| `STORAGE_LOCAL_DIR` | only with `STORAGE_DRIVER=local`, default `<cwd>/.data/media` | — |
+| `DILLY_GEOCODER` | optional; `off` disables Census geocoding (Route / Nearby) | Geocoding on (US Census, free, no key) |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Push reminders to phones (§11) — `npx tsx scripts/gen-vapid.ts` | Reminders are still decided and recorded (`insight` rows) but not sent; Settings says phone reminders aren't switched on |
 | `VAPID_SUBJECT` | optional, default `mailto:team@dillyos.com` | — |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Gmail sync (§10) | Email section hidden for reps; admins see "Email sync isn't configured yet" |
@@ -92,7 +95,7 @@ Pin the Vercel function region to the one closest to the Supabase region (Projec
 |---|---|---|---|
 | **Anthropic** | Nothing different. | Everything. Briefs fall back to the deterministic template (LLM calls time out at 30 s; `fallbackReason` is logged). | Nothing. Optionally check status.anthropic.com. |
 | **Inngest** | Today/Go/Accounts work. The 06:00 brief and reminders don't arrive; streaks don't close at 23:00. | All screens, logging, follow-up engine (it's a DB trigger, not a cron). | Wait. When Inngest recovers, crons resume. Close a missed day manually: send `close_rep_day` RPC via SQL editor: `select public.close_rep_day('<tenant>', '<yyyy-mm-dd>');` (idempotent). Rebuild a brief: send event `dilly/rep-daily-brief.requested`. |
-| **Supabase (DB/Auth)** | `/app` redirects to sign-in with "Can't reach the server … try again"; open pages show "That didn't load — Try again / Go to Today" with a ref. Logging returns "No signal — tap again. It won't double-log." | Static shell, error screens. No data. | Check status.supabase.com and the Supabase dashboard. `/api/health` returns 503 with `db.ok:false` / `auth.ok:false`. Nothing to roll back on our side. Post in the team channel. |
+| **Supabase (DB/Auth)** | `/app` redirects to sign-in with "Can't reach the server … try again"; open pages show "That didn't load — Try again / Go to Today" with a ref. Logs made on an open screen are saved on the phone ("Waiting for signal · N queued") and send by themselves when the DB answers. | Static shell, error screens. No data. | Check status.supabase.com and the Supabase dashboard. `/api/health` returns 503 with `db.ok:false` / `auth.ok:false`. Nothing to roll back on our side. Post in the team channel. |
 | **Vercel** | Site unreachable. | — | status.vercel.com. Nothing to do on our side. |
 
 Reps' double-taps and retries after a dropped connection are safe: each log carries an idempotency key
@@ -131,7 +134,11 @@ stored in `touch.external_id` (`idem:<uuid>`); a repeat hits the unique index an
 - [ ] Supabase Auth → URL config: Site URL = production URL; `<url>/auth/callback` in redirect URLs.
 - [ ] Vercel env vars set for Production (§2); `NEXT_PUBLIC_APP_URL` = production URL.
 - [ ] Vercel function region matches the Supabase region.
-- [ ] Inngest integration installed; all functions synced (7 at launch); failure alerts on.
+- [ ] Inngest integration installed; all functions synced (incl. `geocode-properties`); failure alerts on.
+- [ ] Storage bucket `media` exists and is **private**, with the three `dilly_media_*` policies (§12). On a phone: log a
+      roof walk with a photo → it shows under the property's Photos.
+- [ ] Airplane-mode test on a phone (§12): log at a stop with no signal → "Waiting for signal · 1 queued" → turn signal
+      back on → the touch lands once.
 - [ ] Gmail sync configured and verified with one FOX rep (§10).
 - [ ] VAPID keys set (§11); on one iPhone (home-screen app) and one Android: Settings → Notifications → Turn on
       reminders → Send test notification arrives and opens Today.
@@ -259,6 +266,76 @@ enabled — all decided in `rank.ts`) as Web Push.
   `failure_count` ("Not answering"). Logs: `push:send-failed`, `push:subscription-gone`.
 - Service worker (`public/sw.js`, production builds only): precaches `/offline` + icons; cache-first for
   `/_next/static` and `/icons`; navigations are network-first with the `/offline` fallback. **Page HTML, API, server
-  actions and Supabase responses are never cached.** Logging still needs signal (no offline queue). Changing caching
+  actions and Supabase responses are never cached.** Logging without signal is handled by the offline queue (§12), which
+  lives in the page (IndexedDB), not the service worker — it works with the worker blocked or absent. Changing caching
   rules → bump `VERSION` in `sw.js`; old caches are deleted on activate. `/sw.js` is served `no-cache`.
 - Kill switch: unset the VAPID env vars (reminders go back to record-only).
+
+## 12. Field kit: offline logging, photos, card scan, route, browser errors
+
+### Offline log queue
+- A log made with no signal (`navigator.onLine` false, the request fails, or the server can't reach the DB) is saved on
+  the phone in IndexedDB (`dilly-offline` → `logs`) with its idempotency key, its photos (as bytes) and the time it was
+  tapped. The top bar shows **"Waiting for signal · N queued"**; the toast says the same.
+- Replay: on the `online` event, when Dilly comes back to the foreground, on app open, and every 20 s while anything is
+  waiting. In tap order; photos upload first, then the log with the **same** key (`touch.external_id = idem:<uuid>`), so a
+  log that reached the server but whose answer was lost is recognised (unique index → the action returns the original
+  touch) and never doubles. `occurred_at` is the tap time (rejected if > 30 days old); points and follow-ups follow it.
+- A log the server rejects (record deleted, company left) stays on the phone as **"1 log to fix"**: tap the strip →
+  Try again / Open the record / Discard. Logs only replay for the user who made them (shared phones are safe).
+- Limits: logging offline works on a screen that's already open (Go, an account/property/contact page, Today's Log
+  sheet for a record opened earlier). Opening a new screen with no signal shows `/offline`, which lists how many logs
+  are waiting. Adding a contact and property photos (outside a log) need signal. Clearing Safari website data deletes
+  anything still queued.
+
+### Photos (Supabase Storage)
+- Phones resize to ≤ 1600 px JPEG (~0.8) before upload; the canvas re-encode drops all EXIF (GPS included). Location is
+  stored as `photo.lat/lng` only when the rep ticks "Save where photos were taken".
+- `POST /api/media` (multipart, ≤ 6 MB, JPEG only) stores `<tenant_id>/yyyy/mm/<uuid>.jpg` in the private bucket
+  `media`. Display uses 1-hour signed URLs. Photos logged with a touch go in `touch.media` and are copied to
+  `public.photo` by the `touch_media` trigger; roof walks / inspections with photos earn `site_walk_completed` (+12).
+- **Setup:** `supabase db push` creates the bucket and the `storage.objects` policies (`dilly_media_select/insert/update`,
+  first path segment must be one of the user's tenants). If the push prints *"no privilege to manage storage
+  policies"*, do it by hand: Storage → New bucket → name `media`, **Private**, 10 MB limit, `image/jpeg,image/png,image/webp`;
+  then run the policy statements from `20261004300000_field_kit.sql` §4 in the SQL editor.
+- Local dev / e2e: `STORAGE_DRIVER=local` writes to `.data/media` and serves files through the authenticated
+  `/api/media/file/<key>` route (the local stack has no Storage API). Never set it on Vercel.
+
+### Business-card scan
+- "Scan business card" in every add-contact flow → resized photo → `/api/media` (kept as `contact.source_image_path`)
+  → `scanBusinessCard` → Claude vision on the **sonnet** tier (`DILLY_MODEL_SONNET`) → zod-validated fields pre-fill the
+  form; the company is matched to an account by normalized name, or offered as a new account.
+- Without `ANTHROPIC_API_KEY` / `DILLY_MODEL_SONNET`, or on a timeout / bad answer, the rep sees why and types it in.
+  Every scan is an `agent_run` (`agent_key = 'card-scan'`, cost in `cost_usd`). Logs: `card-scan`, `card-scan:failed`.
+
+### Route for the day / Nearby
+- Property pins come from the free **US Census geocoder**, server-side only (the browser never calls it; CSP unchanged).
+  Cached on `property.lat/lng` with `geocoded_at`, `geocode_source` (`census`, `census_nomatch`, `census_error`,
+  `manual`, `import`). An address edit clears the pin (trigger) and re-geocodes after the save. Inngest
+  `geocode-properties` (hourly + `dilly/geocode.requested`) works through buildings without a pin, ≤ 5 req/s, 25 per
+  step, resumable; errors retry after 6 h. Go also geocodes today's unpinned stops after the page renders.
+- Backfill after an import: Inngest → send `dilly/geocode.requested` with `{}`.
+- Go → **Route**: nearest-neighbour from the rep's location (or the first stop), straight-line miles between stops,
+  "Open route in Google Maps" (multi-stop URL, no API key; > 10 stops split into legs). Properties → Sort: **Nearby**.
+
+### Browser error reports
+- `window.onerror`, unhandled rejections and every `error.tsx` boundary → batched `navigator.sendBeacon` to
+  `POST /api/client-error` (≤ 16 KB, ≤ 10 errors per batch, 20 per IP burst then 1 per 3 s; 25 per page load). Logged
+  as `level:error`, `msg:client:error`, with `requestId`, `user`/`tenant` ids, `release`, `url` (path only — query
+  strings are dropped), `kind` (`error` / `unhandledrejection` / `boundary`) and the boundary `ref` the rep reads out.
+  No names, emails or form contents are sent.
+
+## 12. Import, undo, bulk assign, scorecard
+
+- **Import** (`/app/import`, owners/admins/managers): the browser parses and plans; nothing is written until *Import N rows*.
+  Commit runs in chunks (one RPC = one transaction each), tags rows with `import_batch_id`, and records `import_batch`.
+  Dedupe: companies by normalized name; contacts by email, phone (last 10 digits), or name similarity ≥ 0.6 within the
+  same company; properties by normalized street + city. A retried chunk never doubles rows.
+- **Undo** (24 h, Import → Recent imports): deletes only rows that batch created and that have no touches, tasks,
+  opportunities, flags, photos or preferences since; kept rows are listed. A batch stuck at *Incomplete* (browser closed
+  mid-import) can be undone the same way. After 24 h: merge/delete by hand.
+- **Bulk assign**: tasks follow the account owner — the previous owner's (and unassigned) open tasks on the account and
+  its contacts move to the new owner; tasks another teammate holds stay. Every change is in `account_change`.
+- **Scorecard definitions**: qualified meeting = touch with outcome *scheduled_inspection* / *met_decision_maker*, or a
+  meeting / roof walk / inspection where someone was met. Paperwork = `account.paperwork_at` (first reach of
+  *paperwork_received* or later; migrated V2 accounts already past it have no date). In person = Pace's in-person channels.

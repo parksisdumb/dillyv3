@@ -14,6 +14,7 @@ import { PARTY_ROLES, tenureLabel, type PartyRole } from "@/lib/domain/ownership
 import type { PastProperty } from "@/lib/server/ownership";
 import { PropertyBadges } from "@/components/accounts/property-badges";
 import { MoveProperties, type MovePerson, type MovePreview } from "@/components/accounts/move-properties";
+import { AssignOwnerButton, type TeamMember } from "@/components/accounts/bulk-assign";
 
 const PERSONA_ORDER = Object.keys(PERSONA_ROLES) as PersonaRole[];
 
@@ -46,6 +47,8 @@ export type AccountDetailData = {
   propBadges?: Record<string, PropertyBadge[]>;
   past?: PastProperty[];
   movePeople?: MovePerson[];
+  /** Managers only: reassign the account (tasks follow the owner). */
+  assign?: { ownerId: string | null; members: TeamMember[]; lastChange: string | null };
 };
 
 export function AccountDetailView({ d, movePreview }: { d: AccountDetailData; movePreview?: MovePreview }) {
@@ -94,9 +97,12 @@ export function AccountDetailView({ d, movePreview }: { d: AccountDetailData; mo
         )}
       </div>
 
-      <div className="mt-2 px-4 text-sm text-muted">
-        Owner: {ownerName ?? "Unassigned"}
-        {a.city && <> · {[a.address1, a.city, a.state].filter(Boolean).join(", ")}</>}
+      <div className="mt-2 flex items-center gap-2 px-4 text-sm text-muted">
+        <span className="min-w-0 flex-1">
+          Owner: <span className={cn(d.assign && "font-semibold text-ink")}>{ownerName ?? "Unassigned"}</span>
+          {a.city && <> · {[a.address1, a.city, a.state].filter(Boolean).join(", ")}</>}
+        </span>
+        {d.assign && <AssignOwnerButton accountId={id} ownerId={d.assign.ownerId} ownerName={ownerName} members={d.assign.members} lastChange={d.assign.lastChange} />}
       </div>
 
       {/* Next task */}

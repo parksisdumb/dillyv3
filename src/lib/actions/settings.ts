@@ -3,6 +3,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { ctx, dbMessage, formObject, zodFail } from "@/lib/server/ctx";
 import { teamGoalSchema } from "@/lib/domain/team-goal";
+import { targetsSchema } from "@/lib/domain/scorecard";
 import { MANAGER_ROLES, ROLES } from "@/lib/domain/vocab";
 import type { ActionState } from "@/lib/actions/state";
 import type { Json } from "@/lib/db/database.types";
@@ -112,4 +113,19 @@ export async function deleteInvite(_: ActionState, fd: FormData): Promise<Action
   if (error) return { ok: false, error: dbMessage(error, "cancel the invite") };
   revalidatePath("/app/settings");
   return { ok: true, message: "Invite cancelled" };
+}
+
+/** Scorecard targets (tenant.settings.scorecard_targets). Owners and admins. Blank = no goal line. */
+export async function saveScorecardTargets(_: ActionState, fd: FormData): Promise<ActionState> {
+  const parsed = targetsSchema.safeParse(formObject(fd));
+  if (!parsed.success) return zodFail(parsed.error);
+  const { sb, s, tenantId } = await ctx();
+  if (!(s.tenant.role === "owner" || s.tenant.role === "admin" || s.isPlatformAdmin)) return { ok: false, error: "Only owners and admins set targets." };
+  const { data: t, error: readErr } = await sb.from("tenant").select("settings").eq("id", tenantId).single();
+  if (readErr || !t) return { ok: false, error: dbMessage(readErr, "load settings") };
+  const settings = { ...((t.settings as Record<string, Json>) ?? {}), scorecard_targets: parsed.data as Json };
+  const { error } = await sb.from("tenant").update({ settings }).eq("id", tenantId);
+  if (error) return { ok: false, error: dbMessage(error, "save the targets") };
+  revalidatePath("/app/team", "layout");
+  return { ok: true, message: "Targets saved" };
 }

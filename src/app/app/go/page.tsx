@@ -10,6 +10,8 @@ import { FocusSession } from "@/components/go/focus-session";
 import type { FocusItem, Stop } from "@/components/go/types";
 import type { QueueRow } from "@/components/today/queue-item";
 import { propertyBadges } from "@/lib/domain/badges-property";
+import { after } from "next/server";
+import { geocodeSoon } from "@/lib/geo/geocode-server";
 
 export const metadata: Metadata = { title: "Go" };
 
@@ -75,7 +77,7 @@ async function GoPageBody({ searchParams }: { searchParams: Promise<{ mode?: str
   const [acctRes, propRes, peopleRes] = ids.length
     ? await Promise.all([
         sb.from("account").select("id,name,icp_tier,city,state,address1").in("id", ids),
-        sb.from("property").select("id,account_id,name,address1,city,state").eq("tenant_id", tenantId).in("account_id", ids).is("duplicate_of", null),
+        sb.from("property").select("id,account_id,name,address1,city,state,lat,lng,geocoded_at").eq("tenant_id", tenantId).in("account_id", ids).is("duplicate_of", null),
         sb
           .from("contact")
           .select("id,account_id,full_name,title,persona_role")
@@ -107,6 +109,9 @@ async function GoPageBody({ searchParams }: { searchParams: Promise<{ mode?: str
         city,
         reason: q ? q.title ?? q.reason : m ? `P${m.icp_tier} · ${quietLabel(m.days_since_touch, m.last_touch_at)}` : null,
         directions: mapsUrl([address, prop?.city ?? a.city, prop?.state ?? a.state]),
+        lat: prop?.lat == null ? null : Number(prop.lat),
+        lng: prop?.lng == null ? null : Number(prop.lng),
+        mapsAddress: [address, prop?.city ?? a.city, prop?.state ?? a.state].filter(Boolean).join(", ") || null,
         contacts: (peopleRes.data ?? [])
           .filter((p) => p.account_id === id)
           .map((p) => ({ id: p.id, name: p.full_name ?? "Unnamed", title: p.title, role: p.persona_role })),
@@ -126,6 +131,11 @@ async function GoPageBody({ searchParams }: { searchParams: Promise<{ mode?: str
 
   // Badges + condition flags for today's buildings (the field is where reps see and set them).
   const propIds = todays.map((x) => x.propertyId).filter((x): x is string => !!x);
+  // Today's buildings without a map pin: geocode after the response so Route has them next time.
+  const unpinned = todays.filter((x) => x.propertyId && x.lat == null).map((x) => x.propertyId!);
+  const tried = new Set((propRes.data ?? []).filter((p) => p.geocoded_at).map((p) => p.id));
+  const toGeocode = unpinned.filter((id) => !tried.has(id));
+  if (toGeocode.length) after(() => geocodeSoon(toGeocode));
   if (propIds.length) {
     const { data: cur } = await sb
       .from("property_current")

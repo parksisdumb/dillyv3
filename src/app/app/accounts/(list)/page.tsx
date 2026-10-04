@@ -5,6 +5,7 @@ import { ctx } from "@/lib/server/ctx";
 import { cleanQuery } from "@/lib/server/zod-helpers";
 import { ACCOUNT_TYPES } from "@/lib/domain/vocab";
 import { AccountsListView, type SP } from "@/components/accounts/accounts-list-view";
+import { getMembers } from "@/lib/server/members";
 
 export const metadata: Metadata = { title: "Accounts" };
 
@@ -17,7 +18,7 @@ async function AccountsPageBody({ searchParams }: { searchParams: Promise<SP> })
   let query = sb
     .from("account_ranked")
     .select(
-      "id,name,account_type,icp_tier,relationship_state,last_touch_at,days_since_touch,property_count,contact_count,open_opps,excluded_reason,preference,city,rank_score",
+      "id,name,account_type,icp_tier,relationship_state,last_touch_at,days_since_touch,property_count,contact_count,open_opps,excluded_reason,preference,city,rank_score,owner_user_id",
     )
     .eq("tenant_id", tenantId)
     .eq("is_test", false);
@@ -27,9 +28,25 @@ async function AccountsPageBody({ searchParams }: { searchParams: Promise<SP> })
   else if (sp.state) query = query.eq("relationship_state", sp.state);
   if (sp.type && sp.type in ACCOUNT_TYPES) query = query.eq("account_type", sp.type);
   if (sp.tier && /^[1-4]$/.test(sp.tier)) query = query.eq("icp_tier", Number(sp.tier));
-  const { data, error } = await query.order("rank_score", { ascending: false, nullsFirst: false }).order("name").limit(150);
+  const [{ data, error }, members] = await Promise.all([
+    query.order("rank_score", { ascending: false, nullsFirst: false }).order("name").limit(150),
+    s.isManager ? getMembers({ sb, tenantId }) : Promise.resolve(null),
+  ]);
+  if (!members) return <AccountsListView sp={sp} scope={scope} q={q} data={data} error={error?.message} />;
 
-  return <AccountsListView sp={sp} scope={scope} q={q} data={data} error={error?.message} />;
+  // Managers: owner names for Select mode, and the team for Assign.
+  const names = new Map(members.map((m) => [m.user_id, m.name]));
+  const rows = (data ?? []).map((r) => ({ ...r, owner_name: r.owner_user_id ? names.get(r.owner_user_id) ?? "—" : null }));
+  return (
+    <AccountsListView
+      sp={sp}
+      scope={scope}
+      q={q}
+      data={data ? rows : null}
+      error={error?.message}
+      manager={{ members: members.filter((m) => ["rep", "manager", "owner", "admin"].includes(m.role)).map((m) => ({ user_id: m.user_id, name: m.name, role: m.role })) }}
+    />
+  );
 }
 
 // Skeleton in the page's own Suspense, not a route loading.tsx: a loading.tsx boundary made same-screen navigations

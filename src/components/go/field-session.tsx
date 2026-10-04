@@ -1,14 +1,17 @@
 "use client";
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { useLogTouch } from "@/components/log/use-log-touch";
+import { isQueued, useLogTouch } from "@/components/log/use-log-touch";
+import { PhotoPicker, type PendingPhoto } from "@/components/photos/photo-picker";
+import { RoutePanel } from "@/components/go/route-panel";
+import { Sheet } from "@/components/ui/sheet";
 import { CHANNELS, OUTCOMES, PERSONA_ROLES, QUICK_OUTCOMES, type Channel, type Outcome, type PersonaRole } from "@/lib/domain/vocab";
-import { previewPoints, type PointRules } from "@/lib/domain/points";
+import { previewPoints, sitewalkPoints, type PointRules } from "@/lib/domain/points";
 import { QuickContactForm } from "@/components/log/quick-contact-form";
 import { TierPill } from "@/components/ui/bits";
 import { useToast } from "@/components/ui/toast";
 import { btn, cn, input, labelText } from "@/components/ui/styles";
-import { IconCheck, IconDirections, IconList, IconPlus, IconSkip } from "@/components/icons";
+import { IconCheck, IconDirections, IconList, IconPlus, IconRoute, IconSkip } from "@/components/icons";
 import { HideLogFab } from "@/components/log/log-provider";
 import type { Stop, StopContact } from "@/components/go/types";
 import { PropertyBadges } from "@/components/accounts/property-badges";
@@ -17,9 +20,11 @@ import { FIELD_FLAGS } from "@/lib/domain/badges-property";
 
 const FIELD_CHANNELS: Channel[] = ["site_visit", "door_knock", "roof_walk", "meeting"];
 
-export function FieldSession({ stops: initial, points }: { stops: Stop[]; points: PointRules }) {
+export function FieldSession({ stops: initial, points, initialRoute = false }: { stops: Stop[]; points: PointRules; initialRoute?: boolean }) {
   // Snapshot: the server re-renders after each log (revalidatePath); the session keeps its own running order.
-  const [stops] = useState(initial);
+  const [stops, setStops] = useState(initial);
+  const [route, setRoute] = useState(initialRoute);
+  const [photos, setPhotos] = useState<PendingPhoto[]>([]);
   const { toast } = useToast();
   const [idx, setIdx] = useState(0);
   const [done, setDone] = useState<Record<string, string>>({}); // accountId → outcome label
@@ -55,6 +60,7 @@ export function FieldSession({ stops: initial, points }: { stops: Stop[]; points
   const goTo = (i: number) => {
     setIdx(i);
     setNotes("");
+    setPhotos([]);
     setMet(null);
     setAdding(false);
     setError(null);
@@ -71,21 +77,28 @@ export function FieldSession({ stops: initial, points }: { stops: Stop[]; points
   const disposition = (outcome: Outcome) =>
     start(async () => {
       setError(null);
-      const r = await logTouch({
-        accountId: stop.accountId,
-        contactId: met?.id ?? null,
-        propertyId: stop.propertyId,
-        channel,
-        outcome,
-        notes: notes || null,
-        metRole: met && met.role !== "unknown" ? met.role : null,
-        source: "field",
-      });
+      const r = await logTouch(
+        {
+          accountId: stop.accountId,
+          contactId: met?.id ?? null,
+          propertyId: stop.propertyId,
+          channel,
+          outcome,
+          notes: notes || null,
+          metRole: met && met.role !== "unknown" ? met.role : null,
+          source: "field",
+        },
+        {
+          photos,
+          label: [CHANNELS[channel].label, OUTCOMES[outcome].label, stop.accountName].join(" · "),
+          href: stop.propertyId ? `/app/properties/${stop.propertyId}` : `/app/accounts/${stop.accountId}`,
+        },
+      );
       if (!r.ok) {
         setError(r.error);
         return;
       }
-      toast(r.toast);
+      toast(r.toast, isQueued(r) ? "neutral" : "good");
       setTally((t) => ({ points: t.points + r.points, stops: t.stops + 1 }));
       const nextDone = { ...done, [stop.accountId]: OUTCOMES[outcome].label };
       setDone(nextDone);
@@ -104,10 +117,29 @@ export function FieldSession({ stops: initial, points }: { stops: Stop[]; points
         <span className="num min-w-0 flex-1 truncate text-sm opacity-80">
           {tally.stops} logged · {remaining} to go
         </span>
+        <button type="button" onClick={() => setRoute(true)} className="label inline-flex min-h-12 shrink-0 items-center gap-1 px-2 text-xs hover:underline">
+          <IconRoute size={16} /> Route
+        </button>
         <button type="button" onClick={() => setList((l) => !l)} className="label inline-flex min-h-12 shrink-0 items-center gap-1 px-2 text-xs hover:underline">
-          <IconList size={16} /> {list ? "Back to stop" : `All ${stops.length}`}
+          <IconList size={16} /> {list ? "Stop" : `All ${stops.length}`}
         </button>
       </div>
+      <Sheet open={route} onClose={() => setRoute(false)} title="Route for today" labelledBy="route-sheet">
+        {route && (
+          <RoutePanel
+            stops={stops.map((s) => ({ id: s.accountId, label: s.accountName, address: s.mapsAddress ?? ([s.address, s.city].filter(Boolean).join(", ") || null), lat: s.lat ?? null, lng: s.lng ?? null }))}
+            onUseOrder={(ids) => {
+              const byId = new Map(stops.map((s) => [s.accountId, s]));
+              const next = ids.flatMap((id) => (byId.get(id) ? [byId.get(id)!] : []));
+              setStops(next);
+              const first = next.findIndex((s) => !done[s.accountId]);
+              goTo(first >= 0 ? first : 0);
+              setRoute(false);
+              toast("Stops reordered for the drive", "neutral");
+            }}
+          />
+        )}
+      </Sheet>
 
       {list ? (
         <ol className="mt-3 divide-y divide-line rounded-lg border-2 border-line bg-surface">
@@ -232,6 +264,16 @@ export function FieldSession({ stops: initial, points }: { stops: Stop[]; points
               placeholder="Chief engineer is Dave, back Thu. 2009 TPO, ponding west side."
             />
           </label>
+          <div className="mt-3">
+            <PhotoPicker
+              key={stop.accountId}
+              photos={photos}
+              onChange={setPhotos}
+              compact
+              label="Photos"
+              hint={channel === "roof_walk" ? `Roof walk photos earn +${points.site_walk_completed ?? 12}.` : undefined}
+            />
+          </div>
 
           {/* Dispositions: sticky tray above the bottom nav so the decision is always one thumb away.
               Drops back into normal flow while Notes is focused so it never covers the field under the keyboard. */}
@@ -265,7 +307,7 @@ export function FieldSession({ stops: initial, points }: { stops: Stop[]; points
                   >
                     <span className="font-display text-base font-bold leading-tight">{OUTCOMES[o].label}</span>
                     <span className={cn("num label text-xs", tone === "great" ? "opacity-80" : "text-muted")}>
-                      +{previewPoints(channel, o, met && met.role !== "unknown" ? (met.role as PersonaRole) : null, points)}
+                      +{previewPoints(channel, o, met && met.role !== "unknown" ? (met.role as PersonaRole) : null, points) + sitewalkPoints(channel, o, photos.length, points)}
                     </span>
                   </button>
                 );

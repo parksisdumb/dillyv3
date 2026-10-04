@@ -8,6 +8,8 @@ import { keysEnum, optUuid, splitName } from "@/lib/server/zod-helpers";
 import { OPEN_STAGES, PERSONA_ROLES, SERVICE_LINES, STAGES } from "@/lib/domain/vocab";
 import type { ActionState } from "@/lib/actions/state";
 import { normalizeAddress } from "@/lib/domain/book";
+import { after } from "next/server";
+import { geocodeSoon } from "@/lib/geo/geocode-server";
 
 const optStr = (max: number) => z.string().trim().max(max).optional();
 const optNum = z.coerce.number().nonnegative().optional();
@@ -98,6 +100,8 @@ export async function saveProperty(_: ActionState, fd: FormData): Promise<Action
     void _ignored;
     const { error } = await sb.from("property").update(facts).eq("tenant_id", tenantId).eq("id", id);
     if (error) return { ok: false, error: dbMessage(error, "save the property") };
+    // An address change cleared the pin (property_geocode_reset trigger): re-geocode after the response.
+    after(() => geocodeSoon([id]));
   } else {
     const norm = normalizeAddress(v.address1, v.city);
     if (norm && fd.get("force") !== "1") {
@@ -113,6 +117,7 @@ export async function saveProperty(_: ActionState, fd: FormData): Promise<Action
     }
     const { data, error } = await sb.from("property").insert({ ...row, tenant_id: tenantId, source: "rep", created_by: s.userId }).select("id").single();
     if (error || !data) return { ok: false, error: dbMessage(error, "add the property") };
+    after(() => geocodeSoon([data.id]));
     revalidatePath("/app", "layout");
     redirect(`/app/properties/${data.id}`);
   }

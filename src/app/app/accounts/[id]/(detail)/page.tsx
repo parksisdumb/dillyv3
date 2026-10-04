@@ -7,6 +7,8 @@ import { TOUCH_COLS, withNames } from "@/lib/server/timeline";
 import { safe, safeData } from "@/lib/server/safe";
 import { AccountDetailView } from "@/components/accounts/account-detail-view";
 import { loadPastProperties, loadPropertyBadges } from "@/lib/server/ownership";
+import { getMembers } from "@/lib/server/members";
+import { shortDate } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Account" };
 
@@ -66,12 +68,31 @@ async function AccountDetailBody({ params }: { params: Promise<{ id: string }> }
   ]);
 
   const propIds = props.map((p) => p.id);
-  const [propBadges, past, links] = await Promise.all([
+  const [propBadges, past, links, assign] = await Promise.all([
     safe(() => loadPropertyBadges(c, propIds), {}, "account:badges", f),
     safe(() => loadPastProperties(c, id), [], "account:past-properties", f),
     propIds.length
       ? safeData(sb.from("property_contact").select("property_id,contact_id").eq("tenant_id", tenantId).in("property_id", propIds.slice(0, 200)), [], "account:property-links", f)
       : Promise.resolve([] as { property_id: string; contact_id: string }[]),
+    c.s.isManager
+      ? safe(
+          async () => {
+            const [members, last] = await Promise.all([
+              getMembers(c),
+              sb.from("account_change").select("changed_by,changed_at").eq("tenant_id", tenantId).eq("account_id", id).eq("field", "owner").order("changed_at", { ascending: false }).limit(1).maybeSingle(),
+            ]);
+            const by = last.data?.changed_by ? members.find((m) => m.user_id === last.data!.changed_by)?.name ?? "a manager" : null;
+            return {
+              ownerId: a.owner_user_id ?? null,
+              members: members.filter((m) => ["rep", "manager", "owner", "admin"].includes(m.role)).map((m) => ({ user_id: m.user_id, name: m.name, role: m.role })),
+              lastChange: last.data ? `Last reassigned by ${by} on ${shortDate(last.data.changed_at)}` : null,
+            };
+          },
+          undefined,
+          "account:assign",
+          f,
+        )
+      : Promise.resolve(undefined),
   ]);
   const byContact = new Map<string, string[]>();
   for (const l of links) byContact.set(l.contact_id, [...(byContact.get(l.contact_id) ?? []), l.property_id]);
@@ -90,6 +111,7 @@ async function AccountDetailBody({ params }: { params: Promise<{ id: string }> }
         ownerName: owner?.full_name ?? owner?.email ?? null,
         propBadges,
         past,
+        assign,
         movePeople: contacts
           .filter((p) => byContact.has(p.id))
           .map((p) => ({ id: p.id, name: p.full_name ?? "Unnamed", title: p.title, persona_role: p.persona_role, account_id: id, propertyIds: byContact.get(p.id) ?? [] })),

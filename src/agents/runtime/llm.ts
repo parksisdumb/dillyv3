@@ -9,9 +9,14 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { costUsd, modelFor, type EnvSource, type Tier } from "./models";
 
+/** A content block for multimodal messages (vision: business cards, roof photos). */
+export type LlmContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; mediaType: "image/jpeg" | "image/png" | "image/webp"; data: string /* base64, no data: prefix */ };
+
 export interface LlmMessage {
   role: "user" | "assistant";
-  content: string;
+  content: string | LlmContentBlock[];
 }
 
 export interface TransportRequest {
@@ -90,7 +95,22 @@ function llmTimeoutMs(): number {
 export function anthropicTransport(apiKey: string): LlmTransport {
   const client = new Anthropic({ apiKey, timeout: llmTimeoutMs(), maxRetries: LLM_MAX_RETRIES });
   return async ({ model, system, messages, maxTokens }) => {
-    const res = await client.messages.create({ model, system, messages, max_tokens: maxTokens });
+    const res = await client.messages.create({
+      model,
+      system,
+      messages: messages.map((m) => ({
+        role: m.role,
+        content:
+          typeof m.content === "string"
+            ? m.content
+            : m.content.map((b) =>
+                b.type === "text"
+                  ? { type: "text" as const, text: b.text }
+                  : { type: "image" as const, source: { type: "base64" as const, media_type: b.mediaType, data: b.data } },
+              ),
+      })),
+      max_tokens: maxTokens,
+    });
     const text = res.content
       .map((b) => (b.type === "text" ? b.text : ""))
       .join("")

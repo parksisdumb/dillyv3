@@ -6,6 +6,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { btn, cn } from "@/components/ui/styles";
 import { IconCheck, IconChevronDown, IconLogout, IconSearch, IconSettings, IconUser, IconTrophy } from "@/components/icons";
 import { initials } from "@/lib/format";
+import { QueuePill } from "@/components/offline/queue-pill";
 
 type T = { slug: string; name: string; role: string };
 
@@ -56,6 +57,7 @@ export function TopBar({
           <span className="label inline-flex size-9 items-center justify-center rounded-full bg-ink text-sm text-ground">{initials(fullName ?? email)}</span>
         </button>
       </div>
+      <QueuePill />
 
       <Sheet open={menu} onClose={() => setMenu(false)} title="Account" labelledBy="profile-sheet">
         <div className="px-4 pt-3">

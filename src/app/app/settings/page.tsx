@@ -13,13 +13,16 @@ import { btn } from "@/components/ui/styles";
 import { IconLogout } from "@/components/icons";
 import { EmailConnectCard } from "@/components/settings/email-connect-card";
 import { NotificationsSection } from "@/components/push/notifications-section";
+import { DataSection } from "@/components/import/data-section";
+import { getMembers } from "@/lib/server/members";
 
 export const metadata: Metadata = { title: "Settings" };
 
 const DIMENSIONS = { service_line: "Service line", account_type: "Account type", asset_class: "Asset class", market: "Market" } as const;
 
 async function SettingsPageBody() {
-  const { sb, s, tenantId } = await ctx();
+  const c = await ctx();
+  const { sb, s, tenantId } = c;
   const ownerish = s.tenant.role === "owner" || s.tenant.role === "admin" || s.isPlatformAdmin;
   const [profile, targeting, tenantRow, invites, markets] = await Promise.all([
     sb.from("profile").select("full_name,phone,email").eq("id", s.userId).single(),
@@ -166,6 +169,8 @@ async function SettingsPageBody() {
           </div>
         </>
       )}
+
+      {s.isManager && <DataSection ownerish={ownerish} today={c.today} members={ownerish ? await getMembers(c) : []} />}
 
       <EmailConnectCard />
       <NotificationsSection />

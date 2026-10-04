@@ -8,7 +8,9 @@ import { ctx, dbMessage } from "@/lib/server/ctx";
 import { keysEnum, optUuid, cleanQuery, splitName } from "@/lib/server/zod-helpers";
 import { CHANNELS, OUTCOMES, PERSONA_ROLES } from "@/lib/domain/vocab";
 import { mergePointRules } from "@/lib/domain/points";
-import { logToast } from "@/lib/format";
+import { localDate, logToast } from "@/lib/format";
+import { pathInTenants, parseMediaPath } from "@/lib/storage/paths";
+import { storageFor } from "@/lib/storage";
 import type {
   ContactOption,
   LogContextData,
@@ -136,6 +138,28 @@ export async function searchLogTargets(q: string): Promise<SearchHit[]> {
   ];
 }
 
+const mediaSchema = z.object({
+  kind: z.literal("photo"),
+  id: z.string().uuid(),
+  path: z.string().max(200),
+  width: z.number().int().min(1).max(20000).nullish(),
+  height: z.number().int().min(1).max(20000).nullish(),
+  taken_at: z.iso.datetime({ offset: true }).nullish(),
+  lat: z.number().min(-90).max(90).nullish(),
+  lng: z.number().min(-180).max(180).nullish(),
+  caption: z.string().trim().max(300).nullish(),
+});
+
+/** Offline logs can sit on a phone for days; past this they're more confusing than useful. */
+const MAX_BACKDATE_MS = 30 * 86_400_000;
+
+/** No code + a fetch-ish message, a timeout or a connection-class SQLSTATE: the server couldn't reach the DB. */
+function isTransient(e: { code?: string; message?: string } | null | undefined): boolean {
+  if (!e) return false;
+  if (e.code && (e.code.startsWith("08") || e.code === "57014" || e.code === "57P01" || e.code === "53300")) return true;
+  return !e.code && /AbortError|FetchError|TypeError|fetch failed|timeout|ECONN|network/i.test(e.message ?? "");
+}
+
 const logSchema = z
   .object({
     accountId: optUuid,
@@ -152,6 +176,9 @@ const logSchema = z
     source: z.enum(["rep", "field"]).optional(),
     /** Client-generated per log attempt; a retried/double-tapped submit with the same key logs once. */
     idempotencyKey: z.string().uuid().optional().nullable(),
+    media: z.array(mediaSchema).max(12).optional(),
+    occurredAt: z.iso.datetime({ offset: true }).optional().nullable(),
+    tenantId: optUuid,
   })
   .refine((v) => v.accountId || v.contactId || v.propertyId, { message: "Pick a contact or an account first." });
 
@@ -166,7 +193,7 @@ export async function logTouch(input: LogInput): Promise<LogResult> {
   } catch (err) {
     unstable_rethrow(err); // session redirects are control flow
     log.error("action:logTouch", { ...(await requestInfo()), durationMs: Date.now() - started, err });
-    return { ok: false, error: "Couldn't log that. Check your signal and tap again — it won't double-log." };
+    return { ok: false, retryable: true, error: "Couldn't log that. Check your signal and tap again — it won't double-log." };
   }
 }
 
@@ -174,7 +201,34 @@ async function logTouchInner(input: LogInput): Promise<LogResult> {
   const parsed = logSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Check the log." };
   const v = parsed.data;
-  const { sb, s, tenantId, today } = await ctx();
+  const c = await ctx();
+  const { sb, s } = c;
+  let { tenantId, today } = c;
+  // An offline log replays in the company it was made in, even if the rep switched since.
+  if (v.tenantId && v.tenantId !== tenantId) {
+    const t = s.tenants.find((x) => x.id === v.tenantId);
+    if (!t) return { ok: false, error: "This log was made in a company you're no longer in. Discard it." };
+    tenantId = t.id;
+    today = localDate(t.timezone);
+  }
+  let occurredAt: string | null = null;
+  if (v.occurredAt) {
+    const at = Date.parse(v.occurredAt);
+    if (at < Date.now() - MAX_BACKDATE_MS) return { ok: false, error: "This log is more than 30 days old. Discard it and log it again." };
+    // Phone clocks drift: anything "in the future" is now.
+    if (at < Date.now() - 60_000) occurredAt = new Date(at).toISOString();
+  }
+  const media = v.media ?? [];
+  if (media.length) {
+    if (media.some((m) => !pathInTenants(m.path, [tenantId]) || parseMediaPath(m.path)?.id !== m.id.toLowerCase())) {
+      return { ok: false, error: "A photo doesn't belong to this company. Remove it and try again." };
+    }
+    // Photos earn site-walk points: only count ones that actually landed in storage.
+    const have = await storageFor(sb).exists(media.map((m) => m.path));
+    if (have.size !== new Set(media.map((m) => m.path)).size) {
+      return { ok: false, error: "A photo didn't finish uploading. Tap Try again." };
+    }
+  }
   const source = v.source ?? "rep";
   // Idempotency: touch_external_uq is unique on (tenant_id, source, external_id). A repeat submit with the
   // same key hits 23505 and we return the touch that already landed instead of logging it twice.
@@ -198,6 +252,8 @@ async function logTouchInner(input: LogInput): Promise<LogResult> {
       skip_follow_up: v.skipFollowUp ?? false,
       source,
       external_id: externalId,
+      media: media.map((m) => ({ ...m, caption: m.caption || null })),
+      ...(occurredAt ? { occurred_at: occurredAt } : {}),
     })
     .select("id")
     .single();
@@ -211,7 +267,7 @@ async function logTouchInner(input: LogInput): Promise<LogResult> {
   }
   if (error || !touch) {
     log.warn("action:logTouch:failed", { ...(await requestInfo()), tenant: tenantId, user: s.userId, err: error });
-    return { ok: false, error: dbMessage(error, "log that") };
+    return { ok: false, error: dbMessage(error, "log that"), retryable: isTransient(error) };
   }
 
   const [awards, closed, next] = await Promise.all([
@@ -246,6 +302,9 @@ const quickSchema = z.object({
   email: z.union([z.string().trim().email("Email looks wrong"), z.literal("")]).optional().nullable(),
   source: z.enum(["rep", "field"]).optional(),
   force: z.boolean().optional(),
+  mobile: z.string().trim().max(40).optional().nullable(),
+  notes: z.string().trim().max(1000).optional().nullable(),
+  sourceImagePath: z.string().max(200).optional().nullable(),
 });
 
 export async function findSimilarContacts(name: string, email?: string | null, phone?: string | null): Promise<SimilarContact[]> {
@@ -272,6 +331,7 @@ export async function quickCreateContact(input: QuickContactInput): Promise<Quic
     if (dupes.length) return { ok: false, duplicates: dupes };
   }
   const { sb, s, tenantId } = await ctx();
+  const card = v.sourceImagePath && pathInTenants(v.sourceImagePath, [tenantId]) ? v.sourceImagePath : null;
   const { data, error } = await sb
     .from("contact")
     .insert({
@@ -282,6 +342,9 @@ export async function quickCreateContact(input: QuickContactInput): Promise<Quic
       persona_role: v.personaRole ?? "unknown",
       phone: v.phone || null,
       email: v.email || null,
+      mobile: v.mobile || null,
+      notes: v.notes || null,
+      source_image_path: card,
       source: v.source ?? "rep",
       created_by: s.userId,
     })

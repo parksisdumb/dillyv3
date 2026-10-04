@@ -1,14 +1,15 @@
 "use client";
-import { useEffect, useState } from "react";
-import { log, newId, shortRef } from "@/lib/observability/log";
+import { useEffect } from "react";
+import { log } from "@/lib/observability/log";
+import { boundaryRef, useReportBoundary } from "@/components/observability/client-errors";
 
 /**
  * Last line of defence: the root layout itself failed, so globals.css and fonts may be missing.
  * Inline styles only; plain links (no client router) so it works even when the JS bundle is half-loaded.
  */
 export default function GlobalError({ error }: { error: Error & { digest?: string }; reset: () => void }) {
-  const [clientId] = useState(() => newId());
-  const ref = shortRef(error.digest ?? clientId);
+  useReportBoundary(error, "global");
+  const ref = boundaryRef(error);
   useEffect(() => {
     log.error("boundary:global", { ref, digest: error.digest ?? null, err: error });
   }, [error, ref]);

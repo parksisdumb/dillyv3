@@ -48,3 +48,5 @@ migration/out/
 tests/e2e/.auth/
 test-results/
 playwright-report/
+# local photo storage (STORAGE_DRIVER=local)
+.data/

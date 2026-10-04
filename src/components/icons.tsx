@@ -297,3 +297,33 @@ export const IconHistory = (p: P) => (
     <path d="M3 3v5h5M12 7v5l3 2" />
   </Svg>
 );
+export const IconCamera = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
+    <circle cx="12" cy="13.5" r="3.5" />
+  </Svg>
+);
+export const IconNoSignal = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 20v-2M9 20v-6M14 20v-3M19 20V8M3 3l18 18" />
+  </Svg>
+);
+export const IconRoute = (p: P) => (
+  <Svg {...p}>
+    <circle cx="6" cy="19" r="2" />
+    <circle cx="18" cy="5" r="2" />
+    <path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16" />
+  </Svg>
+);
+export const IconCard = (p: P) => (
+  <Svg {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <circle cx="9" cy="11" r="2" />
+    <path d="M6 16c.6-1.4 1.7-2 3-2s2.4.6 3 2M15 10h3M15 13h3" />
+  </Svg>
+);
+export const IconNearMe = (p: P) => (
+  <Svg {...p}>
+    <path d="M21 3 3 10.5l7.5 3 3 7.5L21 3Z" />
+  </Svg>
+);

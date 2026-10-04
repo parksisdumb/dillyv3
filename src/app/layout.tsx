@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Barlow, Barlow_Semi_Condensed } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/pwa/sw-register";
+import { ClientErrorReporter } from "@/components/observability/client-errors";
 
 const barlow = Barlow({
   variable: "--font-barlow",
@@ -44,6 +45,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body className={`${barlow.variable} ${barlowSemi.variable} bg-ground text-ink antialiased`}>
         {children}
         <ServiceWorkerRegister />
+        <ClientErrorReporter release={(process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.NEXT_PUBLIC_RELEASE ?? "dev").slice(0, 12)} />
       </body>
     </html>
   );

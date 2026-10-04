@@ -1,0 +1,43 @@
+Management Company,Property Name,Address,City,State,Zip,Units,Roof Type,Roof Year,Sq Ft,First Name,Last Name,Title,Email,Phone,Rep Email,Notes
+"Bluff City Residential, LLC",Overton Flats,1820 Madison Avenue,Memphis,TN,38104,212,TPO,2009,48500,Dana,Whitfield,Regional Manager,dana.whitfield@example.com,(901) 555-0101,team@dillyos.com,Ponding on north wing after heavy rain
+Bluff City Residential,Cooper Lofts,455 S Cooper St,Memphis,TN,38104,96,Mod-bit,2004,21000,Rosa,Delgado,Community Manager,rosa.delgado@example.com,(901) 555-0102,team@dillyos.com,
+Bluff City Residential,Midtown Commons,2150 Union Ave,Memphis,TN,38104,180,TPO,2015,39000,Owen,Pruitt,Maintenance Supervisor,owen.pruitt@example.com,(901) 555-0103,,
+Bluff City Residential,Overton Flats,1820 Madison Ave,Memphis,TN,38104,212,TPO,2009,48500,Dana,Whitfield,Regional Manager,dana.whitfield@example.com,(901) 555-0101,,Repeat row from second export
+Riverbend Property Partners,Harbor Town Commons,300 Harbor Town Blvd,Memphis,TN,38103,264,EPDM,2001,61000,Marcus,Okafor,VP Asset Management,marcus.okafor@example.com,(901) 555-0111,team@dillyos.com,Board approved capex review in Q1
+Riverbend Property Partners,Mud Island Landing,610 Island Dr,Memphis,TN,38103,148,EPDM,2006,33500,Tasha,Holloway,Community Manager,tasha.holloway@example.com,(901) 555-0112,,
+Riverbend Property Partners,Riverside Terrace,85 Riverside Dr,Memphis,TN,38103,120,PVC,2018,27000,Tasha,Holloway,Community Manager,tasha.holloway@example.com,(901) 555-0112,,Same manager covers both sites
+Cotton Row Holdings,Front Street Exchange,92 S Front St,Memphis,TN,38103,,BUR,1998,74000,Grant,Fairbanks,Director of Facilities,grant.fairbanks@example.com,(901) 555-0121,team@dillyos.com,Owner-occupied office; leaks over atrium
+Cotton Row Holdings,Monroe Avenue Lofts,110 Monroe Ave,Memphis,TN,38103,64,Mod-bit,2003,18000,Hannah,Brenner,Property Manager,hannah.brenner@example.com,(901) 555-0122,,
+Delta Gateway Management,Airways Distribution Center,3300 Airways Blvd,Memphis,TN,38116,,TPO,2011,412000,Derek,Castillo,Facilities Manager,derek.castillo@example.com,(901) 555-0131,team@dillyos.com,Two buildings; storm damage claim open
+Delta Gateway Management,Shelby Drive Logistics,4100 E Shelby Dr,Memphis,TN,38118,,Metal,2008,286000,Derek,Castillo,Facilities Manager,derek.castillo@example.com,(901) 555-0131,,
+Delta Gateway Management,Lamar Avenue Industrial,3750 Lamar Ave,Memphis,TN,38118,,TPO,2013,198000,Imani,Rhodes,Asset Manager,imani.rhodes@example.com,(901) 555-0132,,
+Delta Gateway Management,Democrat Road Cross-Dock,2900 Democrat Rd,Memphis,TN,38118,,EPDM,1999,154000,Imani,Rhodes,Asset Manager,imani.rhodes@example.com,(901) 555-0132,,Roof near end of life
+Magnolia Crest Living,Magnolia Crest at Kirby,2450 Kirby Pkwy,Memphis,TN,38119,304,Shingle,2010,88000,Leah,Abernathy,Regional Property Manager,leah.abernathy@example.com,(901) 555-0141,,
+Magnolia Crest Living,Magnolia Crest at Germantown,7600 Wolf River Blvd,Germantown,TN,38138,256,Shingle,2012,76000,Wes,Kowalski,Community Manager,wes.kowalski@example.com,(901) 555-0142,,
+Magnolia Crest Living,Magnolia Crest at Cordova,1200 Appling Rd,Cordova,TN,38016,288,Shingle,2007,81000,Nadia,Ochoa,Community Manager,nadia.ochoa@example.com,(901) 555-0143,,Hail last spring — adjuster never came out
+Magnolia Crest Living,Magnolia Crest at Collierville,1780 Houston Levee Rd,Collierville,TN,38017,240,Shingle,2016,70000,Cody,Garrison,Maintenance Supervisor,cody.garrison@example.com,(901) 555-0144,,
+Wolf River Commercial,Poplar Corridor Plaza,5100 Poplar Ave,Memphis,TN,38117,,TPO,2012,52000,Paige,Stanfield,Property Manager,paige.stanfield@example.com,(901) 555-0151,,Existing client of ours? check before calling
+Wolf River Commercial,Ridgeway Center,6055 Primacy Pkwy,Memphis,TN,38119,,Mod-bit,2002,64000,Paige,Stanfield,Property Manager,paige.stanfield@example.com,(901) 555-0151,,
+Wolf River Commercial,Quince Medical Office,6025 Walnut Grove Rd,Memphis,TN,38120,,TPO,2017,31000,Victor,Yates,Building Engineer,victor.yates@example.com,(901) 555-0152,,
+Chickasaw Bluff Properties,Chickasaw Gardens Apartments,3460 Central Ave,Memphis,TN,38111,132,Mod-bit,1996,29000,Erin,Lindqvist,Community Manager,erin.lindqvist@example.com,(901) 555-0161,,
+Chickasaw Bluff Properties,Highland Strip Flats,560 S Highland St,Memphis,TN,38111,84,TPO,2014,19500,Felix,Duval,Maintenance Lead,felix.duval@example.com,(901) 555-0162,,
+Chickasaw Bluff Properties,Park Avenue Commons,4300 Park Ave,Memphis,TN,38117,156,EPDM,2005,36500,Erin,Lindqvist,Community Manager,erin.lindqvist@example.com,(901) 555-0161,,
+Shelby Oaks Industrial Partners,Shelby Oaks Business Park Bldg A,6400 Shelby Oaks Dr,Memphis,TN,38134,,TPO,2010,128000,Trevor,Salazar,VP Operations,trevor.salazar@example.com,(901) 555-0171,team@dillyos.com,
+Shelby Oaks Industrial Partners,Shelby Oaks Business Park Bldg B,6420 Shelby Oaks Dr,Memphis,TN,38134,,TPO,2010,131000,Trevor,Salazar,VP Operations,trevor.salazar@example.com,(901) 555-0171,,
+Shelby Oaks Industrial Partners,Covington Pike Flex,3900 Covington Pike,Memphis,TN,38128,,Metal,2006,74000,Brooke,Tran,Property Manager,brooke.tran@example.com,(901) 555-0172,,
+Mid-South Storage Partners,Stage Road Self Storage,7800 Stage Rd,Bartlett,TN,38133,,Metal,2009,54000,Hector,Quintero,District Manager,hector.quintero@example.com,(901) 555-0181,,
+Mid-South Storage Partners,Winchester Self Storage,3950 Winchester Rd,Memphis,TN,38118,,Metal,2011,61000,Hector,Quintero,District Manager,hector.quintero@example.com,(901) 555-0181,,
+Mid-South Storage Partners,Getwell Self Storage,4420 Getwell Rd,Memphis,TN,38118,,Coating,2015,47000,Shauna,Booker,Area Manager,shauna.booker@example,(901) 555-0182,,Email bounced on last mailer
+Germantown Medical Properties,Germantown Medical Pavilion,7655 Poplar Ave,Germantown,TN,38138,,PVC,2014,58000,Ramon,Zamora,Director of Plant Operations,ramon.zamora@example.com,(901) 555-0191,team@dillyos.com,
+Germantown Medical Properties,Wolfchase Outpatient Center,2700 N Germantown Pkwy,Memphis,TN,38133,,TPO,2019,42000,Jill,Pemberton,Facilities Coordinator,jill.pemberton@example.com,(901) 555-0192,,
+Germantown Medical Properties,Hacks Cross Imaging,3950 Hacks Cross Rd,Memphis,TN,38125,,TPO,2008,23000,Jill,Pemberton,Facilities Coordinator,jill.pemberton@example.com,(901) 555-0192,,
+Summer Avenue Retail Group,Summer Avenue Marketplace,4500 Summer Ave,Memphis,TN,38122,,BUR,1994,96000,Damon,Hargrove,Leasing & Operations,damon.hargrove@example.com,(901) 555-0201,,Anchor tenant reports leaks over produce
+Summer Avenue Retail Group,Raleigh Springs Center,3384 Austin Peay Hwy,Memphis,TN,38128,,Mod-bit,2000,83000,Damon,Hargrove,Leasing & Operations,damon.hargrove@example.com,(901) 555-0201,,
+Summer Avenue Retail Group,Mendenhall Square,850 S Mendenhall Rd,Memphis,TN,38117,,TPO,2016,67000,Kristen,Iverson,Property Manager,kristen.iverson@example.com,(901) 555-0202,,
+Bluff City Residential,Cooper-Young Row,2100 Young Ave,Memphis,TN,38104,48,Shingle,2011,12500,Rosa,Delgado,Community Manager,rosa.delgado@example.com,(901) 555-0102,,
+Riverbend Property Partners,South Main Lofts,422 S Main St,Memphis,TN,38103,72,TPO,2020,16500,Andre,Vance,Maintenance Supervisor,andre.vance@example.com,(901) 555-0113,,
+Wolf River Commercial,,,,,,,TPO,2012,40000,,,,,,,Roof info with no building — fix in the sheet
+Delta Gateway Management,Airways Distribution Center,3300 Airways Boulevard,Memphis,TN,38116,,TPO,2011,412000,Derek,Castillo,Facilities Manager,derek.castillo@example.com,,,Duplicate of row 10 from the leasing export
+Cotton Row Holdings,,,,,,,,,,Mei,Nakamura,CFO,mei.nakamura@example.com,(901) 555-0123,,Signs off on capex over $50K
+Magnolia Crest Living,,,,,,,,,,Caleb,Ellery,VP Operations,caleb.ellery@example.com,(901) 555-0145,team@dillyos.com,Decision maker for all Magnolia sites
+Shelby Oaks Industrial Partners,Shelby Oaks Business Park Bldg C,6440 Shelby Oaks Dr,Memphis,TN,38134,,TPO,2022,118000,Brooke,Tran,Property Manager,brooke.tran@example.com,(901) 555-0172,,New construction — warranty through 2042

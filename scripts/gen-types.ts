@@ -83,7 +83,7 @@ async function main() {
         const raw = rest.join(" ").replace(/^(public|app)\./, "");
         const isArr = raw.endsWith("[]");
         const ty = raw.replace(/\[\]$/, "");
-        const base = ty === "boolean" ? "boolean" : /^(integer|smallint|bigint|numeric)$/.test(ty) ? "number" : "string";
+        const base = ty === "boolean" ? "boolean" : /^(integer|smallint|bigint|numeric)$/.test(ty) ? "number" : /^jsonb?$/.test(ty) ? "Json" : "string";
         return `${n}${opt}: ${base}${isArr ? "[]" : ""}`;
       })
       .join("; ");

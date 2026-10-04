@@ -15,6 +15,9 @@ Spec lives in the "Go To Market System/App" project (`gtm-agent-system/00-ARCHIT
 | Screens | `src/app/app/**`, `src/components/**` | 3-tap Log sheet, Today queue + brief, Go (field session + call focus), Accounts, Pipeline, Team, Approvals, Me, Settings. |
 | Agents | `src/agents/**`, `src/inngest/**` | Runtime (runs, steps, cost, grading, gates) + Rep Daily Brief end to end with a deterministic fallback. Crons: brief fan-out 06:00 local, reminders, close-of-day/streaks, manager escalations. |
 | Migration | `migration/` | V2 → new copy-never-move kit: dump, discover, restore to `legacy`, transform, reconcile, freeze, delta. See `migration/README.md`. |
+| Field kit | `src/lib/offline`, `src/lib/storage`, `src/lib/geo`, `src/agents/card-scan` | Offline log queue (IndexedDB, idempotent replay), roof photos (Supabase Storage), business-card scan (Claude vision), Route for the day + Nearby (Census geocoder), browser error reports. RUNBOOK §12. |
+| Import / export | `/app/import`, `/app/export/<kind>` | Managers+. CSV/paste → map (auto-detect, saved per tenant) → preview (dedupe, errors, per-record create/link/skip) → chunked commit → undo within 24 h. Sample: `docs/samples/tsg-import-sample.csv`. Streamed CSV exports follow list filters. |
+| Bulk assign + scorecard | Accounts → Select; `/app/team/scorecard` | Reassign/tier/preference in bulk (tasks follow the account owner; `account_change` audit). 90-day scorecard with 13-week sparklines; targets in `tenant.settings.scorecard_targets`. |
 | Preview | `/preview/<screen>` | Fixture-backed screens for design review; 404 unless `DILLY_PREVIEW=1`. |
 
 ## Setup (when you're at the computer — ~30 min)
@@ -51,6 +54,6 @@ npm run db:types                # regenerates src/lib/db/database.types.ts from 
 
 - Push reminders need VAPID keys in env (see `docs/RUNBOOK.md` §11); without them decisions are only recorded as `insight` rows.
 - Gmail sync is ported (metadata only; reps re-consent once — see RUNBOOK §10). Outlook is "coming soon".
-- Go has no map/GPS yet — stops grouped by city with Directions links.
+- Route distances are straight-line (no road routing); Google Maps does the driving directions.
 - Migration column map is a best guess until the V2 schema is confirmed by `migration/02-discover.sh`.
 - Signal-triggered pushes need an event trigger (cron is 30 min).

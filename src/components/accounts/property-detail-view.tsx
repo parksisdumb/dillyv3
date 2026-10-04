@@ -14,6 +14,7 @@ import { DETAIL_FLAGS, propertyBadges, type PropertyBadgeInput } from "@/lib/dom
 import { PropertyBadges } from "@/components/accounts/property-badges";
 import { ConditionToggles } from "@/components/accounts/condition-toggles";
 import { OwnershipSection, type OwnershipData, type TransferPreview } from "@/components/accounts/ownership";
+import { PropertyPhotos, type PhotoTile } from "@/components/photos/property-photos";
 
 export type PropertyDetailData = {
   today: string;
@@ -43,6 +44,8 @@ export type PropertyDetailData = {
   /** property_current columns that drive badges (flags, open job types, storm, management change). */
   badge: Omit<PropertyBadgeInput, "roof_system" | "roof_install_year" | "warranty_expires_on">;
   ownership: OwnershipData;
+  /** Newest first, with 1-hour signed display URLs. */
+  photos?: PhotoTile[];
 };
 
 function Fact({ label, value, sub, tone }: { label: string; value: React.ReactNode; sub?: React.ReactNode; tone?: "warn" | "bad" | "muted" }) {
@@ -139,6 +142,8 @@ export function PropertyDetailView({ d, preview }: { d: PropertyDetailData; prev
           <IconEdit className="text-accent" />
         </a>
       )}
+
+      <PropertyPhotos propertyId={p.id} photos={d.photos ?? []} />
 
       <OpenTasks tasks={d.tasks} today={today} />
       <Opportunities opps={d.opps} today={today} newHref={`/app/pipeline/new?property=${p.id}${p.account_id ? `&account=${p.account_id}` : ""}`} />

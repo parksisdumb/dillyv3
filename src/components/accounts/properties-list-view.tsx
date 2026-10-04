@@ -8,6 +8,8 @@ import { Chip, Empty, ErrorNote } from "@/components/ui/bits";
 import { btn, cn, input } from "@/components/ui/styles";
 import { IconChevronRight, IconPlus, IconSearch } from "@/components/icons";
 import { PropertyBadges } from "@/components/accounts/property-badges";
+import { NearbySort } from "@/components/accounts/nearby-sort";
+import { formatMiles } from "@/lib/geo/route";
 
 /** "4d ago", "3mo ago", "Never touched" — the list row's freshness, kept short so badges get the room. */
 function quietShort(days: number | null): string {
@@ -35,6 +37,7 @@ export function PropertiesListView({
   today,
   error,
   capped,
+  headerExtra,
 }: {
   sp: PropertySP;
   rows: PropertyListRow[];
@@ -43,6 +46,7 @@ export function PropertiesListView({
   today: string;
   error?: string | null;
   capped?: boolean;
+  headerExtra?: React.ReactNode;
 }) {
   const base = "/app/properties";
   const year = Number(today.slice(0, 4));
@@ -52,6 +56,7 @@ export function PropertiesListView({
   return (
     <div>
       <BookTabs active="properties" />
+      {headerExtra}
       <form method="get" action={base} className="mt-3 flex flex-col gap-2 px-4">
         {Object.entries(sp).map(([k, v]) => (!["q", "asset", "roof", "age"].includes(k) && v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
         <div className="flex gap-2">
@@ -149,11 +154,13 @@ export function PropertiesListView({
             ).map(([k, l], i) => (
               <span key={k}>
                 {i > 0 && "·"}
-                <Link className={cn("inline-flex min-h-12 items-center px-1", sort === k && "font-semibold text-ink")} href={hrefWith(base, sp, { sort: k === "recent" ? undefined : k })}>
+                <Link className={cn("inline-flex min-h-12 items-center px-1", sort === k && "font-semibold text-ink")} href={hrefWith(base, sp, { sort: k === "recent" ? undefined : k, near: undefined })}>
                   {l}
                 </Link>
               </span>
             ))}
+            ·
+            <NearbySort base={base} sp={sp} active={sort === "near"} />
           </span>
         )}
       </div>
@@ -171,6 +178,7 @@ export function PropertiesListView({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <span className="min-w-0 flex-1 truncate font-display text-base font-bold">{r.name}</span>
+                      {r.distance_mi != null && <span className="num shrink-0 text-xs font-semibold">{formatMiles(r.distance_mi)}</span>}
                       <span className={cn("num shrink-0 text-xs", r.days == null || r.days > 60 ? "text-warning" : "text-muted")}>{quietShort(r.days)}</span>
                       {r.open_value > 0 && <span className="num shrink-0 font-display font-bold">{money(r.open_value)}</span>}
                     </div>

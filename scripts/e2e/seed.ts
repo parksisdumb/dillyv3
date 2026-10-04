@@ -251,6 +251,7 @@ export async function seed(log: (m: string) => void = console.log): Promise<Seed
     "point_event",
     "insight",
     "task",
+    "photo",
     "touch",
     "opportunity",
     "property_contact",

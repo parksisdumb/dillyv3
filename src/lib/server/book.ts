@@ -1,4 +1,5 @@
 import "server-only";
+import { haversineMiles } from "@/lib/geo/route";
 import type { Ctx } from "@/lib/server/ctx";
 import { cleanQuery } from "@/lib/server/zod-helpers";
 import { PERSONA_ROLES } from "@/lib/domain/vocab";
@@ -127,6 +128,8 @@ export type PropertySP = {
   incomplete?: string;
   stale?: string;
   sort?: string;
+  /** "lat,lng" from the phone when sort=near (Properties → Nearby). */
+  near?: string;
 };
 
 export type PropertyListRow = {
@@ -148,7 +151,20 @@ export type PropertyListRow = {
   manager_name?: string | null;
   owner_name?: string | null;
   badges?: PropertyBadge[];
+  /** Straight-line miles from the rep (sort=near). */
+  distance_mi?: number | null;
 };
+
+/** "30.2672,-97.7431" → coordinates, or null. */
+export function parseNear(near: string | undefined): { lat: number; lng: number } | null {
+  const m = near?.match(/^(-?\d{1,2}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)$/);
+  if (!m) return null;
+  const lat = Number(m[1]);
+  const lng = Number(m[2]);
+  return Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+}
+/** ~50 miles: the prefilter box for Nearby (then exact distance + sort in memory). */
+const NEAR_BOX_DEG = 0.75;
 
 export async function loadProperties(
   c: Ctx,
@@ -167,7 +183,7 @@ export async function loadProperties(
   let q = sb
     .from("property_current")
     .select(
-      "id,name,address1,city,account_id,roof_system,roof_install_year,roof_area_sf,warranty_expires_on,current_manager_name,current_owner_name,active_flags,open_service_lines,management_changed_on,ownership_changed_on,storm_kind,storm_at",
+      "id,name,address1,city,account_id,roof_system,roof_install_year,roof_area_sf,warranty_expires_on,current_manager_name,current_owner_name,active_flags,open_service_lines,management_changed_on,ownership_changed_on,storm_kind,storm_at,lat,lng",
     )
     .eq("tenant_id", tenantId)
     .is("duplicate_of", null)
@@ -204,7 +220,16 @@ export async function loadProperties(
   if (sp.noacct === "1") q = q.is("account_id", null);
   if (sp.incomplete === "1") q = q.or("roof_system.is.null,address1.is.null,roof_area_sf.is.null");
 
-  const sort = preset ? "age" : sp.sort ?? "recent";
+  const here = sp.sort === "near" ? parseNear(sp.near) : null;
+  const sort = preset ? "age" : here ? "near" : sp.sort === "near" ? "recent" : sp.sort ?? "recent";
+  if (here) {
+    const lngBox = NEAR_BOX_DEG / Math.max(0.2, Math.cos((here.lat * Math.PI) / 180));
+    q = q
+      .gte("lat", here.lat - NEAR_BOX_DEG)
+      .lte("lat", here.lat + NEAR_BOX_DEG)
+      .gte("lng", here.lng - lngBox)
+      .lte("lng", here.lng + lngBox);
+  }
   q = sort === "age" ? q.order("roof_install_year", { ascending: true, nullsFirst: false }) : q.order("name", { nullsFirst: false });
   const [{ data, error }, cityRows, marketRows] = await Promise.all([
     q.limit(500),
@@ -256,6 +281,11 @@ export async function loadProperties(
   if (sort === "recent") {
     rows = [...rows].sort((a, b) => (last.get(b.id) ?? "").localeCompare(last.get(a.id) ?? ""));
   }
+  const dist = new Map<string, number>();
+  if (here) {
+    for (const r of rows) if (r.lat != null && r.lng != null) dist.set(r.id, haversineMiles(here, { lat: Number(r.lat), lng: Number(r.lng) }));
+    rows = [...rows].sort((a, b) => (dist.get(a.id) ?? 1e9) - (dist.get(b.id) ?? 1e9));
+  }
 
   return {
     cities,
@@ -281,6 +311,7 @@ export async function loadProperties(
       manager_name: r.current_manager_name,
       owner_name: r.current_owner_name,
       badges: propertyBadges(r, today),
+      distance_mi: dist.get(r.id) ?? null,
     })),
   };
 }

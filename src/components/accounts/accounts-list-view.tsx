@@ -5,6 +5,7 @@ import { Empty, ErrorNote } from "@/components/ui/bits";
 import { BookTabs } from "@/components/accounts/book-tabs";
 import { btn, cn, input } from "@/components/ui/styles";
 import { IconPlus, IconSearch } from "@/components/icons";
+import { BulkAccountsList, type BulkRow, type TeamMember } from "@/components/accounts/bulk-assign";
 
 const STATES = [
   { v: "", label: "All" },
@@ -16,7 +17,31 @@ const STATES = [
 
 export type SP = { q?: string; scope?: string; state?: string; type?: string; tier?: string };
 
-export function AccountsListView({ sp, scope, q, data, error }: { sp: SP; scope: "mine" | "all"; q: string; data: AccountRowData[] | null; error?: string | null }) {
+/** CSV export of exactly what the list is filtered to (route handler: src/app/app/export/[kind]/route.ts). */
+export function exportHref(sp: SP, scope: "mine" | "all"): string {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries({ ...sp, scope })) if (v && ["q", "scope", "state", "type", "tier"].includes(k)) p.set(k, v);
+  return `/app/export/accounts?${p.toString()}`;
+}
+
+/** Manager-only extras: Select mode + bulk actions, Import / Export. */
+export type AccountsManagerTools = { members: TeamMember[]; selecting?: boolean; selected?: string[] };
+
+export function AccountsListView({
+  sp,
+  scope,
+  q,
+  data,
+  error,
+  manager,
+}: {
+  sp: SP;
+  scope: "mine" | "all";
+  q: string;
+  data: (AccountRowData & Pick<BulkRow, "owner_name">)[] | null;
+  error?: string | null;
+  manager?: AccountsManagerTools;
+}) {
   const href = (patch: Partial<SP>) => {
     const p = new URLSearchParams();
     const merged = { ...sp, ...patch };
@@ -100,13 +125,31 @@ export function AccountsListView({ sp, scope, q, data, error }: { sp: SP; scope:
               <Link className="underline" href={href({ scope: "all" })}>
                 Look in everyone&apos;s accounts
               </Link>
+            ) : manager ? (
+              <>
+                Add one with New, or{" "}
+                <Link className="font-semibold underline" href="/app/import?entity=accounts">
+                  import a spreadsheet
+                </Link>
+                .
+              </>
             ) : (
               "Add one with New."
             )}
           </Empty>
         </div>
       )}
-      {data && data.length > 0 && (
+      {manager && data && data.length > 0 && (
+        <BulkAccountsList
+          rows={data}
+          members={manager.members}
+          capped={data.length === 150}
+          exportHref={exportHref(sp, scope)}
+          initialSelecting={manager.selecting}
+          initialSelected={manager.selected}
+        />
+      )}
+      {!manager && data && data.length > 0 && (
         <ul className="mt-3 divide-y divide-line border-y border-line bg-surface">
           {data.map((a) => (
             <AccountRow key={a.id} a={a} />

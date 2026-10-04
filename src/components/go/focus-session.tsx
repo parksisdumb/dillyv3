@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { useLogTouch } from "@/components/log/use-log-touch";
+import { isQueued, useLogTouch } from "@/components/log/use-log-touch";
 import { OUTCOMES, QUICK_OUTCOMES, type Outcome } from "@/lib/domain/vocab";
 import { CONNECT_OUTCOMES, previewPoints, type PointRules } from "@/lib/domain/points";
 import { TierPill } from "@/components/ui/bits";
@@ -47,20 +47,26 @@ export function FocusSession({ items: initial, points }: { items: FocusItem[]; p
   const log = (outcome: Outcome) =>
     start(async () => {
       setError(null);
-      const r = await logTouch({
-        accountId: it.accountId,
-        contactId: it.contactId,
-        propertyId: it.propertyId,
-        opportunityId: it.opportunityId,
-        channel: "call",
-        outcome,
-        notes: notes || null,
-      });
+      const r = await logTouch(
+        {
+          accountId: it.accountId,
+          contactId: it.contactId,
+          propertyId: it.propertyId,
+          opportunityId: it.opportunityId,
+          channel: "call",
+          outcome,
+          notes: notes || null,
+        },
+        {
+          label: `Call · ${OUTCOMES[outcome].label} · ${it.name}`,
+          href: it.contactId ? `/app/contacts/${it.contactId}` : it.accountId ? `/app/accounts/${it.accountId}` : null,
+        },
+      );
       if (!r.ok) {
         setError(r.error);
         return;
       }
-      toast(r.toast);
+      toast(r.toast, isQueued(r) ? "neutral" : "good");
       setTally((t) => ({
         points: t.points + r.points,
         calls: t.calls + 1,

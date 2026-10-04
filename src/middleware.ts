@@ -97,6 +97,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Static assets, Inngest and the health probe never touch auth.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/inngest|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest)$).*)"],
+  // Static assets, Inngest, the health probe and browser error beacons never touch auth.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/inngest|api/health|api/client-error|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|txt|xml|webmanifest)$).*)"],
 };

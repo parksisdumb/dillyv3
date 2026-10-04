@@ -19,12 +19,25 @@ const SHOW = [
 ];
 const iconBtn = "inline-flex size-12 shrink-0 items-center justify-center rounded-lg border-2 border-line bg-surface hover:border-ink";
 
-export function ContactsListView({ sp, rows, error, capped }: { sp: ContactSP; rows: ContactListRow[]; error?: string | null; capped?: boolean }) {
+export function ContactsListView({
+  sp,
+  rows,
+  error,
+  capped,
+  headerExtra,
+}: {
+  sp: ContactSP;
+  rows: ContactListRow[];
+  error?: string | null;
+  capped?: boolean;
+  headerExtra?: React.ReactNode;
+}) {
   const scope = sp.scope === "all" ? "all" : "mine";
   const base = "/app/contacts";
   return (
     <div>
       <BookTabs active="contacts" />
+      {headerExtra}
       <form method="get" action={base} className="mt-3 flex flex-col gap-2 px-4">
         {Object.entries(sp).map(([k, v]) => (k !== "q" && k !== "role" && v ? <input key={k} type="hidden" name={k} value={v} /> : null))}
         <div className="flex gap-2">

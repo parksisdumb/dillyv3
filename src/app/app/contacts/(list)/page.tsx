@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { ctx } from "@/lib/server/ctx";
 import { loadContacts, type ContactSP } from "@/lib/server/book";
 import { ContactsListView } from "@/components/accounts/contacts-list-view";
+import { DataLinks } from "@/components/import/data-links";
 import ContactsSkeleton from "./skeleton";
 
 export const metadata: Metadata = { title: "Contacts" };
@@ -20,5 +21,5 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
 async function ContactsBody({ sp }: { sp: ContactSP }) {
   const c = await ctx();
   const { rows, error, capped } = await loadContacts(c, sp);
-  return <ContactsListView sp={sp} rows={rows} error={error} capped={capped} />;
+  return <ContactsListView sp={sp} rows={rows} error={error} capped={capped} headerExtra={c.s.isManager ? <DataLinks entity="contacts" sp={sp} /> : null} />;
 }

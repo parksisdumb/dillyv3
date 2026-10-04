@@ -5,6 +5,8 @@ import { btn } from "@/components/ui/styles";
 import { TeamCard } from "@/components/team/card";
 import { IconCheck, IconList } from "@/components/icons";
 import type { PaceRow } from "@/lib/server/team";
+import type { Scorecard } from "@/lib/domain/scorecard";
+import { ScorecardCard } from "@/components/team/scorecard-view";
 
 export type TeamHomeData = {
   tenantName: string;
@@ -13,6 +15,7 @@ export type TeamHomeData = {
   stalled: { id: string; name: string; why: string; value_estimate: number | null }[];
   health: { duplicates: number; propertiesIncomplete: number; completePct: number };
   pending: number;
+  scorecard?: Scorecard | null;
 };
 
 export function TeamHomeView({ d }: { d: TeamHomeData }) {
@@ -32,6 +35,7 @@ export function TeamHomeView({ d }: { d: TeamHomeData }) {
         </Link>
       </div>
       <div className="grid grid-cols-1 gap-3 px-4 md:grid-cols-2">
+        {d.scorecard && <ScorecardCard sc={d.scorecard} />}
         <TeamCard href="/app/team/pace" title="Pace" big={teamToday} sub="touches today, whole team">
           <ul className="divide-y divide-line">
             {pace.slice(0, 5).map((r) => (

@@ -20,6 +20,11 @@ const schema = z.object({
   // TODO(sentry): error reporting. When set, install @sentry/nextjs and register it via setErrorReporter()
   // in src/lib/observability/log.ts. Unused until then.
   SENTRY_DSN: z.string().optional(),
+  // Photos / card scans. supabase (default): private bucket 'media'. local: disk under STORAGE_LOCAL_DIR (dev/e2e only).
+  STORAGE_DRIVER: z.string().optional(),
+  STORAGE_LOCAL_DIR: z.string().optional(),
+  // US Census geocoder for Route / Nearby. "off" disables outbound geocoding.
+  DILLY_GEOCODER: z.string().optional(),
 });
 
 /** Required to boot: without these every page fails. Everything else degrades (see docs/RUNBOOK.md). */

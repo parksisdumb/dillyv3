@@ -44,3 +44,10 @@ export function previewPoints(channel: Channel, outcome: Outcome, metRole: Perso
   if (channel === "lunch_and_learn") p += rules.lunch_and_learn ?? 0;
   return p;
 }
+
+/** Roof walk / inspection logged WITH photos: mirrors the site_walk_completed rule in app.on_touch_insert(). */
+export const SITE_WALK_CHANNELS: Channel[] = ["inspection", "roof_walk"];
+export const SITE_WALK_OUTCOMES: Outcome[] = ["met_in_person", "connected", "met_decision_maker", "other"];
+export function sitewalkPoints(channel: Channel, outcome: Outcome, photoCount: number, rules: PointRules): number {
+  return photoCount > 0 && SITE_WALK_CHANNELS.includes(channel) && SITE_WALK_OUTCOMES.includes(outcome) ? rules.site_walk_completed ?? 0 : 0;
+}

@@ -2,10 +2,12 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { loadLogContext } from "@/lib/actions/log";
-import { useLogTouch } from "@/components/log/use-log-touch";
+import { isQueued, useLogTouch } from "@/components/log/use-log-touch";
+import { PhotoPicker, type PendingPhoto } from "@/components/photos/photo-picker";
+import { isNetworkError } from "@/lib/offline/net";
 import type { ContactOption, LogContextData, LogTarget } from "@/lib/actions/log-types";
 import { CHANNELS, OUTCOMES, PERSONA_ROLES, PRIMARY_CHANNELS, QUICK_OUTCOMES, type Channel, type Outcome, type PersonaRole } from "@/lib/domain/vocab";
-import { previewPoints } from "@/lib/domain/points";
+import { DEFAULT_POINTS, previewPoints, sitewalkPoints } from "@/lib/domain/points";
 import { Sheet } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
 import { btn, cn, input, labelText } from "@/components/ui/styles";
@@ -13,6 +15,26 @@ import { ContactPicker } from "@/components/log/contact-picker";
 import { IconBuilding, IconChevronDown, IconUser } from "@/components/icons";
 
 const MORE_CHANNELS = (Object.keys(CHANNELS) as Channel[]).filter((c) => !PRIMARY_CHANNELS.includes(c));
+
+// Contexts loaded this session, so the sheet still opens in a dead zone for a place the rep already opened it.
+const contextCache = new Map<string, LogContextData>();
+const cacheKey = (t: LogTarget) => [t.accountId, t.contactId, t.propertyId, t.opportunityId].map((x) => x ?? "").join("|");
+
+/** No signal and never loaded: enough to log on the record the rep is looking at. Names come back with signal. */
+function offlineContext(t: LogTarget): LogContextData | null {
+  if (!t.accountId && !t.contactId && !t.propertyId) return null;
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return {
+    account: t.accountId ? { id: t.accountId, name: "This account" } : null,
+    contact: t.contactId ? { id: t.contactId, name: "This contact", title: null, persona_role: "unknown", account_id: t.accountId ?? null } : null,
+    contacts: [],
+    properties: t.propertyId ? [{ id: t.propertyId, label: "This building" }] : [],
+    opportunities: [],
+    points: DEFAULT_POINTS,
+    today,
+  };
+}
 
 /**
  * The 3-tap log: (1) contact, pre-selected from context  (2) channel  (3) outcome — the outcome tap logs.
@@ -28,7 +50,7 @@ export function LogSheet({
   target: LogTarget;
   onClose: () => void;
   /** Pre-loaded state (dev preview): skips the server load and opens at a given step. */
-  initial?: { data: LogContextData; contact: ContactOption | null; picking?: boolean; channel?: Channel | null };
+  initial?: { data: LogContextData; contact: ContactOption | null; picking?: boolean; channel?: Channel | null; details?: boolean; photos?: PendingPhoto[]; offline?: boolean };
 }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -38,7 +60,7 @@ export function LogSheet({
   const [picking, setPicking] = useState(initial?.picking ?? false);
   const [channel, setChannel] = useState<Channel | null>(initial?.channel ?? null);
   const [moreChannels, setMoreChannels] = useState(false);
-  const [details, setDetails] = useState(false);
+  const [details, setDetails] = useState(initial?.details ?? false);
   const [notes, setNotes] = useState("");
   const [metRole, setMetRole] = useState<PersonaRole | "">("");
   const [followUpOn, setFollowUpOn] = useState("");
@@ -46,21 +68,35 @@ export function LogSheet({
   const [propertyId, setPropertyId] = useState(target.propertyId ?? "");
   const [opportunityId, setOpportunityId] = useState(target.opportunityId ?? "");
   const [error, setError] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<PendingPhoto[]>(initial?.photos ?? []);
+  const [offline, setOffline] = useState(initial?.offline ?? false);
   const [pending, start] = useTransition();
   const logTouch = useLogTouch(); // idempotent + never throws on lost signal
 
+  const apply = (t: LogTarget, d: LogContextData, preferContact?: ContactOption | null) => {
+    setData(d);
+    setLoadError(null);
+    // On an account, pre-pick its most recent person. With no context the list is "recent people" across
+    // accounts — make the rep choose rather than guess.
+    const c = preferContact ?? d.contact ?? (t.contactId || !d.account ? null : d.contacts[0] ?? null);
+    setContact(c);
+    setPicking(!d.account && !c);
+  };
   const load = (t: LogTarget, preferContact?: ContactOption | null) =>
     loadLogContext(t)
       .then((d) => {
-        setData(d);
-        setLoadError(null);
-        // On an account, pre-pick its most recent person. With no context the list is "recent people" across
-        // accounts — make the rep choose rather than guess.
-        const c = preferContact ?? d.contact ?? (t.contactId || !d.account ? null : d.contacts[0] ?? null);
-        setContact(c);
-        setPicking(!d.account && !c);
+        contextCache.set(cacheKey(t), d);
+        setOffline(false);
+        apply(t, d, preferContact);
       })
-      .catch(() => setLoadError("Couldn't load. Check signal and try again."));
+      .catch((e) => {
+        // Dead zone: use what this session already knows, or a bare context for the record on screen.
+        const fallback = isNetworkError(e) ? contextCache.get(cacheKey(t)) ?? offlineContext(t) : null;
+        if (fallback) {
+          setOffline(true);
+          apply(t, fallback, preferContact);
+        } else setLoadError("Couldn't load. Check signal and try again.");
+      });
 
   useEffect(() => {
     if (!open || initial) return;
@@ -91,25 +127,34 @@ export function LogSheet({
     if (!channel || !canLog) return;
     setError(null);
     start(async () => {
-      const r = await logTouch({
-        accountId: account?.id ?? null,
-        contactId: contact?.id ?? null,
-        propertyId: propertyId || null,
-        opportunityId: opportunityId || null,
-        channel,
-        outcome,
-        notes: notes || null,
-        metRole: metRole || null,
-        followUpOn: followUpOn || null,
-        skipFollowUp: skip,
-      });
+      const who = contact?.name && contact.name !== "This contact" ? contact.name : account?.name && account.name !== "This account" ? account.name : null;
+      const r = await logTouch(
+        {
+          accountId: account?.id ?? null,
+          contactId: contact?.id ?? null,
+          propertyId: propertyId || null,
+          opportunityId: opportunityId || null,
+          channel,
+          outcome,
+          notes: notes || null,
+          metRole: metRole || null,
+          followUpOn: followUpOn || null,
+          skipFollowUp: skip,
+        },
+        {
+          photos,
+          label: [CHANNELS[channel].label, OUTCOMES[outcome].label, who].filter(Boolean).join(" · "),
+          href: contact ? `/app/contacts/${contact.id}` : account ? `/app/accounts/${account.id}` : propertyId ? `/app/properties/${propertyId}` : null,
+        },
+      );
       if (!r.ok) {
         setError(r.error);
         return;
       }
-      toast(r.toast);
+      toast(r.toast, isQueued(r) ? "neutral" : "good");
       onClose();
-      router.refresh();
+      // Queued: no refresh (a server round-trip with no signal would bounce to the offline page). It refreshes on send.
+      if (!isQueued(r)) router.refresh();
     });
   };
 
@@ -122,6 +167,11 @@ export function LogSheet({
 
       {data && (
         <div className="flex flex-col gap-5 px-4 pt-4">
+          {offline && (
+            <p className="flex items-center gap-2 rounded-lg border-2 border-warning bg-warning/10 px-3 py-2 text-sm" role="status">
+              No signal — this log will be saved on your phone and sent when you have bars.
+            </p>
+          )}
           {/* Step 1 — who */}
           <section aria-label="Who">
             <div className={cn(labelText, "mb-2")}>1 · Who</div>
@@ -205,8 +255,8 @@ export function LogSheet({
                 className="flex min-h-12 w-full items-center gap-2 text-left text-sm text-muted"
               >
                 <IconChevronDown size={18} className={cn("motion-safe:transition-transform", details && "rotate-180")} />
-                <span className="label">Notes, who I met, follow-up</span>
-                {(notes || metRole || followUpOn || skip || propertyId || opportunityId) && <span className="size-2 rounded-full bg-accent" aria-label="details set" />}
+                <span className="label">Notes, who I met, follow-up, photos</span>
+                {(notes || metRole || followUpOn || skip || propertyId || opportunityId || photos.length > 0) && <span className="size-2 rounded-full bg-accent" aria-label="details set" />}
               </button>
               {details && (
                 <div className="flex flex-col gap-3 pb-1">
@@ -214,6 +264,14 @@ export function LogSheet({
                     <span className={labelText}>Notes</span>
                     <textarea className={cn(input, "py-2")} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Roof out of warranty, leaks in bldg 3" />
                   </label>
+                  <div className="flex flex-col gap-1.5">
+                    <span className={labelText}>Photos</span>
+                    <PhotoPicker
+                      photos={photos}
+                      onChange={setPhotos}
+                      hint={channel === "roof_walk" || channel === "inspection" ? `Photos from the roof earn +${data.points.site_walk_completed ?? 12}.` : undefined}
+                    />
+                  </div>
                   <label className="flex flex-col gap-1.5">
                     <span className={labelText}>Who I met</span>
                     <select className={input} value={metRole} onChange={(e) => setMetRole(e.target.value as PersonaRole | "")}>
@@ -272,7 +330,7 @@ export function LogSheet({
               <div className={cn(labelText, "mb-2")}>3 · What happened — tap to log</div>
               <div className="grid grid-cols-2 gap-2">
                 {QUICK_OUTCOMES[channel].map((o) => {
-                  const pts = previewPoints(channel, o, metRole || null, data.points);
+                  const pts = previewPoints(channel, o, metRole || null, data.points) + sitewalkPoints(channel, o, photos.length, data.points);
                   const tone = OUTCOMES[o].tone;
                   return (
                     <button

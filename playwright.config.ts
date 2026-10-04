@@ -25,6 +25,7 @@ const appEnv: Record<string, string> = {
   PATH: process.env.PATH ?? "",
   HOME: process.env.HOME ?? "/root",
   NEXT_TELEMETRY_DISABLED: "1",
+  STORAGE_DRIVER: "local", // the e2e stack has no Storage API: photos/card scans go to disk, served by /api/media/file
   // E2E-only Web Push keys (never used outside the local suite): Settings → Notifications renders its real states.
   VAPID_PUBLIC_KEY: "BBw7Uu3mITizQtb2DXMheM4JFHUkVLCq1FXzQmO7aG7xFJHLwkK9-nIukQKwPLoMoYWh2tg1G0YOozouOGWvRr8",
   VAPID_PRIVATE_KEY: "3q1A2vIfoor5UtMxSc5c2y1zQKBL0XLFqpNHAorPhrg",
@@ -42,7 +43,7 @@ const mobile = {
 const desktop = { viewport: { width: 1280, height: 800 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 };
 
 // Specs that make sense on the desktop (manager screens + cross-cutting checks). Everything runs on mobile.
-const DESKTOP_SPECS = /(team|a11y|visual)\.spec\.ts$/;
+const DESKTOP_SPECS = /(team|a11y|visual|scorecard)\.spec\.ts$/;
 
 const config: PlaywrightTestConfig = {
   testDir: "./tests/e2e",

@@ -35,6 +35,8 @@ export type Database = {
           created_by: string | null;
           created_at: string;
           updated_at: string;
+          import_batch_id: string | null;
+          paperwork_at: string | null;
         };
         Insert: {
           id?: string;
@@ -65,6 +67,8 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          import_batch_id?: string | null;
+          paperwork_at?: string | null;
         };
         Update: {
           id?: string;
@@ -95,6 +99,8 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          import_batch_id?: string | null;
+          paperwork_at?: string | null;
         };
         Relationships: [];
       };
@@ -119,6 +125,45 @@ export type Database = {
           user_id?: string;
           role?: string;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      account_change: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          account_id: string;
+          field: string;
+          old_value: string | null;
+          new_value: string | null;
+          note: string | null;
+          tasks_moved: number;
+          changed_by: string | null;
+          changed_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          account_id: string;
+          field: string;
+          old_value?: string | null;
+          new_value?: string | null;
+          note?: string | null;
+          tasks_moved?: number;
+          changed_by?: string | null;
+          changed_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          account_id?: string;
+          field?: string;
+          old_value?: string | null;
+          new_value?: string | null;
+          note?: string | null;
+          tasks_moved?: number;
+          changed_by?: string | null;
+          changed_at?: string;
         };
         Relationships: [];
       };
@@ -408,6 +453,7 @@ export type Database = {
           created_at: string;
           updated_at: string;
           phone_digits: string | null;
+          import_batch_id: string | null;
         };
         Insert: {
           id?: string;
@@ -437,6 +483,7 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          import_batch_id?: string | null;
         };
         Update: {
           id?: string;
@@ -466,6 +513,7 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          import_batch_id?: string | null;
         };
         Relationships: [];
       };
@@ -508,6 +556,93 @@ export type Database = {
           source?: string;
           created_by?: string | null;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      import_batch: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          user_id: string | null;
+          file_name: string | null;
+          mapping: Json;
+          options: Json;
+          row_count: number;
+          counts: Json;
+          status: string;
+          error: string | null;
+          created_at: string;
+          finished_at: string | null;
+          undone_at: string | null;
+          undone_by: string | null;
+          undo_report: Json | null;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          user_id?: string | null;
+          file_name?: string | null;
+          mapping?: Json;
+          options?: Json;
+          row_count?: number;
+          counts?: Json;
+          status?: string;
+          error?: string | null;
+          created_at?: string;
+          finished_at?: string | null;
+          undone_at?: string | null;
+          undone_by?: string | null;
+          undo_report?: Json | null;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          user_id?: string | null;
+          file_name?: string | null;
+          mapping?: Json;
+          options?: Json;
+          row_count?: number;
+          counts?: Json;
+          status?: string;
+          error?: string | null;
+          created_at?: string;
+          finished_at?: string | null;
+          undone_at?: string | null;
+          undone_by?: string | null;
+          undo_report?: Json | null;
+        };
+        Relationships: [];
+      };
+      import_mapping: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          name: string;
+          header_sig: string;
+          mapping: Json;
+          options: Json;
+          created_by: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          name: string;
+          header_sig: string;
+          mapping: Json;
+          options?: Json;
+          created_by?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          name?: string;
+          header_sig?: string;
+          mapping?: Json;
+          options?: Json;
+          created_by?: string | null;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -577,6 +712,66 @@ export type Database = {
           full_name?: string | null;
           claimed_at?: string | null;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      mail_connection: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          user_id: string;
+          provider: string;
+          email: string;
+          scopes: string[];
+          refresh_token_encrypted: string | null;
+          access_token_encrypted: string | null;
+          access_expires_at: string | null;
+          history_id: string | null;
+          sync_state: Json | null;
+          status: string;
+          last_error: string | null;
+          last_synced_at: string | null;
+          last_sync_stats: Json | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          tenant_id: string;
+          user_id: string;
+          provider: string;
+          email: string;
+          scopes?: string[];
+          refresh_token_encrypted?: string | null;
+          access_token_encrypted?: string | null;
+          access_expires_at?: string | null;
+          history_id?: string | null;
+          sync_state?: Json | null;
+          status?: string;
+          last_error?: string | null;
+          last_synced_at?: string | null;
+          last_sync_stats?: Json | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          user_id?: string;
+          provider?: string;
+          email?: string;
+          scopes?: string[];
+          refresh_token_encrypted?: string | null;
+          access_token_encrypted?: string | null;
+          access_expires_at?: string | null;
+          history_id?: string | null;
+          sync_state?: Json | null;
+          status?: string;
+          last_error?: string | null;
+          last_synced_at?: string | null;
+          last_sync_stats?: Json | null;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -757,6 +952,57 @@ export type Database = {
         };
         Relationships: [];
       };
+      photo: {
+        Row: {
+          id: string;
+          tenant_id: string;
+          property_id: string | null;
+          account_id: string | null;
+          touch_id: string | null;
+          path: string;
+          caption: string | null;
+          taken_at: string | null;
+          lat: number | null;
+          lng: number | null;
+          width: number | null;
+          height: number | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id: string;
+          tenant_id: string;
+          property_id?: string | null;
+          account_id?: string | null;
+          touch_id?: string | null;
+          path: string;
+          caption?: string | null;
+          taken_at?: string | null;
+          lat?: number | null;
+          lng?: number | null;
+          width?: number | null;
+          height?: number | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          tenant_id?: string;
+          property_id?: string | null;
+          account_id?: string | null;
+          touch_id?: string | null;
+          path?: string;
+          caption?: string | null;
+          taken_at?: string | null;
+          lat?: number | null;
+          lng?: number | null;
+          width?: number | null;
+          height?: number | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       platform_admin_email: {
         Row: {
           email: string;
@@ -892,6 +1138,10 @@ export type Database = {
           created_by: string | null;
           created_at: string;
           updated_at: string;
+          unit_count: number | null;
+          import_batch_id: string | null;
+          geocoded_at: string | null;
+          geocode_source: string | null;
         };
         Insert: {
           id?: string;
@@ -921,6 +1171,10 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          unit_count?: number | null;
+          import_batch_id?: string | null;
+          geocoded_at?: string | null;
+          geocode_source?: string | null;
         };
         Update: {
           id?: string;
@@ -950,6 +1204,10 @@ export type Database = {
           created_by?: string | null;
           created_at?: string;
           updated_at?: string;
+          unit_count?: number | null;
+          import_batch_id?: string | null;
+          geocoded_at?: string | null;
+          geocode_source?: string | null;
         };
         Relationships: [];
       };
@@ -959,18 +1217,21 @@ export type Database = {
           property_id: string;
           contact_id: string;
           role: string | null;
+          import_batch_id: string | null;
         };
         Insert: {
           tenant_id: string;
           property_id: string;
           contact_id: string;
           role?: string | null;
+          import_batch_id?: string | null;
         };
         Update: {
           tenant_id?: string;
           property_id?: string;
           contact_id?: string;
           role?: string | null;
+          import_batch_id?: string | null;
         };
         Relationships: [];
       };
@@ -1643,6 +1904,18 @@ export type Database = {
         };
         Relationships: [];
       };
+      my_mail_connection: {
+        Row: {
+          id: string | null;
+          tenant_id: string | null;
+          provider: string | null;
+          email: string | null;
+          status: string | null;
+          last_synced_at: string | null;
+          last_error: string | null;
+        };
+        Relationships: [];
+      };
       property_current: {
         Row: {
           id: string | null;
@@ -1693,16 +1966,25 @@ export type Database = {
       };
     };
     Functions: {
+      bulk_update_accounts: { Args: { p_tenant: string; p_accounts: string[]; p_changes: Json }; Returns: unknown };
       claim_invites: { Args: {  }; Returns: number };
       close_rep_day: { Args: { p_tenant: string; p_day: string }; Returns: number };
       find_similar_contacts: { Args: { p_tenant: string; p_name: string; p_email: string; p_phone: string }; Returns: { id: string | null; full_name: string | null; email: string | null; phone: string | null; account_name: string | null; similarity: number | null }[] };
       health: { Args: {  }; Returns: unknown };
+      import_accounts: { Args: { p_batch: string; p_rows: Json }; Returns: unknown };
+      import_begin: { Args: { p_tenant: string; p_file_name: string; p_mapping: Json; p_options: Json; p_row_count: number }; Returns: unknown };
+      import_contacts: { Args: { p_batch: string; p_rows: Json }; Returns: unknown };
+      import_finish: { Args: { p_batch: string; p_status: string; p_counts: Json; p_error?: string }; Returns: unknown };
+      import_properties: { Args: { p_batch: string; p_rows: Json }; Returns: unknown };
+      import_undo: { Args: { p_batch: string }; Returns: unknown };
       leaderboard: { Args: { p_tenant: string; p_since: string }; Returns: { user_id: string | null; full_name: string | null; role: string | null; points: number | null; touches: number | null; connects: number | null; in_person: number | null }[] };
+      mail_ingest: { Args: { p_tenant: string; p_user: string; p_source: string; p_rows: Json }; Returns: unknown };
       move_contact: { Args: { p_contact: string; p_new_account: string; p_new_title?: string; p_effective?: string }; Returns: unknown };
       rep_queue: { Args: { p_tenant: string; p_user: string; p_day?: string }; Returns: { item_type: string | null; task_id: string | null; account_id: string | null; contact_id: string | null; opportunity_id: string | null; property_id: string | null; title: string | null; reason: string | null; due_on: string | null; overdue_days: number | null; score: number | null; account_name: string | null; contact_name: string | null; phone: string | null; email: string | null; icp_tier: number | null }[] };
       rep_streak: { Args: { p_tenant: string; p_user: string }; Returns: number };
       save_push_subscription: { Args: { p_tenant: string; p_endpoint: string; p_p256dh: string; p_auth: string; p_user_agent?: string }; Returns: unknown };
       set_property_flag: { Args: { p_property: string; p_flag: string; p_on: boolean; p_note?: string }; Returns: boolean };
+      team_scorecard: { Args: { p_tenant: string; p_weeks?: number }; Returns: { user_id: string | null; bucket: string | null; period_start: string | null; meetings: number | null; in_person: number | null; first_touches: number | null; fu_due: number | null; fu_done: number | null; paperwork: number | null }[] };
       transfer_properties: { Args: { p_properties: string[]; p_role: string; p_new_account: string; p_effective?: string; p_contacts_with_building?: string[]; p_contacts_with_old_company?: string[]; p_note?: string }; Returns: unknown };
       transfer_property: { Args: { p_property: string; p_role: string; p_new_account: string; p_effective?: string; p_contacts_with_building?: string[]; p_contacts_with_old_company?: string[]; p_note?: string; p_intro_task?: boolean }; Returns: unknown };
     };

@@ -12,6 +12,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       fullName={s.fullName}
       email={s.email}
       isManager={s.isManager}
+      userId={s.userId}
+      tenantId={s.tenant.id}
     >
       {children}
     </AppShell>

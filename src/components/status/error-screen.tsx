@@ -2,7 +2,8 @@
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
-import { log, newId, shortRef } from "@/lib/observability/log";
+import { log } from "@/lib/observability/log";
+import { boundaryRef } from "@/components/observability/client-errors";
 import { btn } from "@/components/ui/styles";
 
 export type BoundaryProps = { error: Error & { digest?: string }; reset: () => void };
@@ -18,9 +19,8 @@ export function ErrorScreen({ error, reset, where, inShell = true }: BoundaryPro
   const router = useRouter();
   const pathname = usePathname();
   const [pending, start] = useTransition();
-  const [clientId] = useState(() => newId());
   const [offline, setOffline] = useState(false);
-  const ref = shortRef(error.digest ?? clientId);
+  const ref = boundaryRef(error);
 
   useEffect(() => {
     setOffline(typeof navigator !== "undefined" && navigator.onLine === false);
