@@ -40,7 +40,13 @@ export function MyDay({
   initialRoute?: boolean;
 }) {
   const { toast } = useToast();
-  const [stops, setStops] = useState(initial);
+  // The server's stops are the source of truth (a log refreshes them: "Logged today"); Route only overrides the order.
+  const [order, setOrder] = useState<string[] | null>(null);
+  const stops = useMemo(() => {
+    if (!order) return initial;
+    const rank = new Map(order.map((k, i) => [k, i]));
+    return [...initial].sort((a, b) => (rank.get(a.key) ?? order.length) - (rank.get(b.key) ?? order.length));
+  }, [initial, order]);
   const [route, setRoute] = useState(initialRoute);
   const [open, setOpen] = useState<string | null>(null);
 
@@ -189,9 +195,8 @@ export function MyDay({
             stops={[...apptStops, ...listStops]}
             fixedCount={apptStops.length}
             onUseOrder={(ids) => {
-              const byKey = new Map(stops.map((s) => [s.key, s]));
-              const next = ids.flatMap((id) => (byKey.get(id) ? [byKey.get(id)!] : []));
-              setStops(next);
+              const keys = new Set(stops.map((s) => s.key));
+              setOrder(ids.filter((id) => keys.has(id)));
               setRoute(false);
               toast("Stops reordered for the drive", "neutral");
             }}

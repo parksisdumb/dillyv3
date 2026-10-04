@@ -3,6 +3,13 @@ import { z } from "zod";
 
 export const MAX_BODY_BYTES = 16 * 1024;
 export const MAX_ERRORS_PER_BATCH = 10;
+export const MAX_REPORTS_PER_PAGE = 25;
+
+/**
+ * Inline <head> script (root layout): buffers errors thrown before hydration into window.__dillyEarlyErrors, so a
+ * crash during load is still reported; installClientReporter (client-reporter.ts) drains the buffer and stops it.
+ */
+export const EARLY_ERROR_SCRIPT = `(function(){var b=window.__dillyEarlyErrors=[];function p(k,e){if(window.__dillyEarlyErrors===b&&b.length<${MAX_REPORTS_PER_PAGE})b.push({kind:k,error:e});}window.addEventListener("error",function(ev){if(ev.error||ev.message)p("error",ev.error||new Error(ev.message));});window.addEventListener("unhandledrejection",function(ev){p("unhandledrejection",ev.reason);});})();`;
 
 const str = (max: number) =>
   z

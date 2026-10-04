@@ -28,7 +28,9 @@ test.describe("Go — My day", () => {
     await expect(toasts(page)).toContainText(/Revisit/);
     const after = await eventually(() => touchesForAccount(acct!.id), (t) => t.length === before + 1);
     expect(after.find((x) => x.outcome === "not_there")).toMatchObject({ channel: "door_knock" });
-    await expect(page.getByTestId("stop").first()).toContainText(/Logged today/);
+    // The refreshed list can re-rank stops after a touch: find this stop by name, not position.
+    const same = page.getByTestId("stop").filter({ has: page.getByRole("button", { name: `Log at ${label}`, exact: true }) });
+    await expect(same).toContainText(/Logged today/);
   });
 
   test("Log with a person at a stop → the sheet picks them", async ({ page }) => {

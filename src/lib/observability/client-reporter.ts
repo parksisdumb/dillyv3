@@ -2,12 +2,12 @@
 // Tiny browser error reporter → POST /api/client-error (navigator.sendBeacon; fetch keepalive as fallback).
 // Batches for 2 s, flushes when the page is hidden, caps at 25 reports per page load, drops repeats.
 // Sends ids only (user, tenant) — never names, emails or what the rep typed.
-import { MAX_ERRORS_PER_BATCH, type ClientError } from "@/lib/observability/client-error";
+import { MAX_ERRORS_PER_BATCH, MAX_REPORTS_PER_PAGE, type ClientError } from "@/lib/observability/client-error";
 
 type Report = Omit<ClientError, "kind"> & { kind?: ClientError["kind"] };
 
 const ENDPOINT = "/api/client-error";
-const MAX_PER_PAGE = 25;
+const MAX_PER_PAGE = MAX_REPORTS_PER_PAGE;
 const queue: Report[] = [];
 let sentCount = 0;
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -80,11 +80,22 @@ function safeString(v: unknown): string {
   }
 }
 
+/**
+ * Errors thrown before hydration (before installClientReporter runs) are caught by EARLY_ERROR_SCRIPT, an inline
+ * <head> script (client-error.ts), into window.__dillyEarlyErrors. Install drains that buffer and stops it.
+ */
+type EarlyError = { kind: "error" | "unhandledrejection"; error: unknown };
+type EarlyWindow = Window & { __dillyEarlyErrors?: EarlyError[] | null };
+
 /** Idempotent. Call once from the root layout. */
 export function installClientReporter(rel: string | null) {
   if (installed || typeof window === "undefined") return;
   installed = true;
   release = rel;
+  const w = window as EarlyWindow;
+  const early = w.__dillyEarlyErrors ?? [];
+  w.__dillyEarlyErrors = null;
+  for (const e of early) reportClientError(e.error, { kind: e.kind });
   window.addEventListener("error", (ev: ErrorEvent) => {
     // Resource load errors (img/script) bubble as plain Events without .error — not code failures.
     if (!ev.error && !ev.message) return;

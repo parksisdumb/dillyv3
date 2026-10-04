@@ -29,6 +29,8 @@ test.describe("Parks (TSG owner) builds and assigns a list", () => {
     await expect(page.getByTestId("list-progress")).toHaveText(/0 of 3 touched in the last 30 days/);
     // Sort: oldest roof first.
     await page.getByRole("link", { name: "Oldest roof" }).click();
+    // Wait for the sorted page to commit: a search-param change remounts the page, which would close a sheet opened mid-navigation.
+    await expect(page.getByRole("link", { name: "Oldest roof" })).toHaveAttribute("aria-current", "true");
     await expect(page.getByRole("list", { name: "List properties" }).locator("li").first()).toContainText(`${city} Plaza 1`);
     // CSV export carries the buildings.
     const csv = await page.request.get(`/app/lists/${listId}/export`);

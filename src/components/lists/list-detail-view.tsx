@@ -141,7 +141,11 @@ export function ListDetailView({ d }: { d: ListDetailData }) {
           {sorts.map(([k, l], i) => (
             <span key={k}>
               {i > 0 && "·"}
-              <Link className={cn("inline-flex min-h-12 items-center px-1", d.sort === k && "font-semibold text-ink")} href={hrefWith(base, {}, { sort: k === "list" ? undefined : k })}>
+              <Link
+                className={cn("inline-flex min-h-12 items-center px-1", d.sort === k && "font-semibold text-ink")}
+                aria-current={d.sort === k ? "true" : undefined}
+                href={hrefWith(base, {}, { sort: k === "list" ? undefined : k })}
+              >
                 {l}
               </Link>
             </span>

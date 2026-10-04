@@ -3,6 +3,7 @@ import { Barlow, Barlow_Semi_Condensed } from "next/font/google";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/pwa/sw-register";
 import { ClientErrorReporter } from "@/components/observability/client-errors";
+import { EARLY_ERROR_SCRIPT } from "@/lib/observability/client-error";
 
 const barlow = Barlow({
   variable: "--font-barlow",
@@ -42,6 +43,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
+      <head>
+        {/* Buffers errors thrown before hydration; ClientErrorReporter reports them once it installs. */}
+        <script dangerouslySetInnerHTML={{ __html: EARLY_ERROR_SCRIPT }} />
+      </head>
       <body className={`${barlow.variable} ${barlowSemi.variable} bg-ground text-ink antialiased`}>
         {children}
         <ServiceWorkerRegister />
