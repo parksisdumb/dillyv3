@@ -1,0 +1,249 @@
+import "server-only";
+import type { Ctx } from "@/lib/server/ctx";
+import { cleanQuery } from "@/lib/server/zod-helpers";
+import { PERSONA_ROLES } from "@/lib/domain/vocab";
+import { ageBandYears, daysSince, isGoingQuiet, type AgeBand } from "@/lib/domain/book";
+import { duplicateGroups } from "@/lib/domain/dupes";
+import { addDays } from "@/lib/format";
+
+/** Run an `.in()` query in chunks so long id lists don't blow the URL length. */
+async function inChunks<T>(ids: string[], run: (chunk: string[]) => PromiseLike<{ data: T[] | null }>, size = 100): Promise<T[]> {
+  const out: T[] = [];
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) chunks.push(ids.slice(i, i + size));
+  const res = await Promise.all(chunks.map(run));
+  for (const r of res) out.push(...(r.data ?? []));
+  return out;
+}
+
+async function myAccountIds(c: Ctx): Promise<string[]> {
+  const { data } = await c.sb.from("account").select("id").eq("tenant_id", c.tenantId).eq("owner_user_id", c.s.userId).limit(2000);
+  return (data ?? []).map((a) => a.id);
+}
+
+// --- Contacts ------------------------------------------------------------------------------------------
+
+export type ContactSP = { q?: string; scope?: string; role?: string; show?: string; sort?: string };
+
+export type ContactListRow = {
+  id: string;
+  name: string;
+  title: string | null;
+  persona_role: string;
+  account_id: string | null;
+  account_name: string | null;
+  last_touch_at: string | null;
+  days: number | null;
+  phone: string | null;
+  email: string | null;
+  bounced: boolean;
+  quiet: boolean;
+  dupe: boolean;
+  do_not_contact: boolean;
+};
+
+export async function loadContacts(c: Ctx, sp: ContactSP): Promise<{ rows: ContactListRow[]; error: string | null; capped: boolean }> {
+  const { sb, tenantId } = c;
+  const term = cleanQuery(sp.q);
+  let q = sb
+    .from("contact")
+    .select("id,full_name,title,persona_role,account_id,last_touch_at,phone,mobile,email,email_status,do_not_contact")
+    .eq("tenant_id", tenantId)
+    .is("duplicate_of", null)
+    .eq("is_test", false);
+  let mine: Set<string> | null = null;
+  if (sp.scope !== "all") {
+    const ids = await myAccountIds(c);
+    if (ids.length === 0) return { rows: [], error: null, capped: false };
+    if (ids.length <= 150) q = q.in("account_id", ids);
+    else mine = new Set(ids);
+  }
+  if (term) q = q.or(`full_name.ilike.%${term}%,email.ilike.%${term}%,title.ilike.%${term}%,phone.ilike.%${term}%,mobile.ilike.%${term}%`);
+  if (sp.role && sp.role in PERSONA_ROLES) q = q.eq("persona_role", sp.role);
+  if (sp.show === "never") q = q.is("last_touch_at", null);
+  if (sp.show === "email") q = q.not("email", "is", null);
+  if (sp.show === "phone") q = q.or("phone.not.is.null,mobile.not.is.null");
+  if (sp.show === "bounced") q = q.eq("email_status", "bounced");
+  if (sp.show === "quiet") q = q.lt("last_touch_at", new Date(Date.now() - 14 * 86_400_000).toISOString());
+  q = sp.sort === "name" ? q.order("full_name", { nullsFirst: false }) : q.order("last_touch_at", { ascending: false, nullsFirst: false }).order("full_name");
+  const { data, error } = await q.limit(400);
+  if (error) return { rows: [], error: error.message, capped: false };
+
+  let rows = (data ?? []).filter((r) => !mine || (r.account_id && mine.has(r.account_id)));
+  const acctIds = [...new Set(rows.map((r) => r.account_id).filter((x): x is string => !!x))];
+  const accts = await inChunks(acctIds, (ch) => sb.from("account").select("id,name,icp_tier").in("id", ch));
+  const am = new Map(accts.map((a) => [a.id, a]));
+  const now = new Date();
+  if (sp.show === "quiet") rows = rows.filter((r) => isGoingQuiet(r.last_touch_at, r.account_id ? am.get(r.account_id)?.icp_tier : 3, now));
+
+  // Possible duplicates: same email or same name anywhere in the tenant (cheap, page-scoped lookup).
+  const page = rows.slice(0, 150);
+  const emails = [...new Set(page.map((r) => r.email).filter((x): x is string => !!x))];
+  const names = [...new Set(page.map((r) => r.full_name).filter((x): x is string => !!x))];
+  const others = [
+    ...(await inChunks(emails, (ch) => sb.from("contact").select("id,full_name,email,phone,mobile,account_id").eq("tenant_id", tenantId).is("duplicate_of", null).in("email", ch), 50)),
+    ...(await inChunks(names, (ch) => sb.from("contact").select("id,full_name,email,phone,mobile,account_id").eq("tenant_id", tenantId).is("duplicate_of", null).in("full_name", ch), 50)),
+  ];
+  const pool = new Map([...page, ...others].map((x) => [x.id, { id: x.id, full_name: x.full_name, email: x.email, phone: x.phone, mobile: x.mobile, account_id: x.account_id }]));
+  const dupeIds = new Set(duplicateGroups([...pool.values()]).flat().map((x) => x.id));
+
+  return {
+    capped: rows.length > 150,
+    error: null,
+    rows: page.map((r) => ({
+      id: r.id,
+      name: r.full_name ?? r.email ?? "Unnamed contact",
+      title: r.title,
+      persona_role: r.persona_role,
+      account_id: r.account_id,
+      account_name: r.account_id ? am.get(r.account_id)?.name ?? null : null,
+      last_touch_at: r.last_touch_at,
+      days: daysSince(r.last_touch_at, now),
+      phone: r.mobile ?? r.phone,
+      email: r.email,
+      bounced: r.email_status === "bounced",
+      quiet: isGoingQuiet(r.last_touch_at, r.account_id ? am.get(r.account_id)?.icp_tier : 3, now),
+      dupe: dupeIds.has(r.id),
+      do_not_contact: r.do_not_contact,
+    })),
+  };
+}
+
+// --- Properties ----------------------------------------------------------------------------------------
+
+export type PropertySP = {
+  q?: string;
+  scope?: string;
+  city?: string;
+  asset?: string;
+  roof?: string;
+  age?: string;
+  warranty?: string;
+  opp?: string;
+  noacct?: string;
+  incomplete?: string;
+  stale?: string;
+  sort?: string;
+};
+
+export type PropertyListRow = {
+  id: string;
+  name: string;
+  address: string | null;
+  city: string | null;
+  account_id: string | null;
+  account_name: string | null;
+  roof_system: string | null;
+  roof_install_year: number | null;
+  roof_area_sf: number | null;
+  warranty_expires_on: string | null;
+  open_value: number;
+  open_count: number;
+  last_touch_at: string | null;
+  days: number | null;
+  incomplete: boolean;
+};
+
+export async function loadProperties(
+  c: Ctx,
+  sp: PropertySP,
+): Promise<{ rows: PropertyListRow[]; error: string | null; capped: boolean; cities: { city: string; n: number }[] }> {
+  const { sb, tenantId, today } = c;
+  const year = Number(today.slice(0, 4));
+  const term = cleanQuery(sp.q);
+  const preset = sp.stale === "1";
+  let q = sb
+    .from("property")
+    .select("id,name,address1,city,account_id,roof_system,roof_install_year,roof_area_sf,warranty_expires_on")
+    .eq("tenant_id", tenantId)
+    .is("duplicate_of", null)
+    .eq("is_test", false);
+  let mine: Set<string> | null = null;
+  if (sp.scope === "mine") {
+    const ids = await myAccountIds(c);
+    if (ids.length <= 150) q = q.in("account_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
+    else mine = new Set(ids);
+  }
+  if (term) q = q.or(`name.ilike.%${term}%,address1.ilike.%${term}%,city.ilike.%${term}%`);
+  if (sp.city) q = q.ilike("city", cleanQuery(sp.city));
+  if (sp.asset) q = q.ilike("asset_class", cleanQuery(sp.asset));
+  if (sp.roof) q = q.ilike("roof_system", cleanQuery(sp.roof));
+  const band = sp.age as AgeBand | undefined;
+  if (band === "unknown") q = q.is("roof_install_year", null);
+  else if (band === "lt10" || band === "10to15" || band === "15to20" || band === "20plus") {
+    const { min, max } = ageBandYears(band, year);
+    if (min != null) q = q.gte("roof_install_year", min);
+    if (max != null) q = q.lte("roof_install_year", max);
+  }
+  if (preset) q = q.not("roof_install_year", "is", null);
+  if (sp.warranty === "1") q = q.gte("warranty_expires_on", today).lte("warranty_expires_on", addDays(today, 365));
+  if (sp.noacct === "1") q = q.is("account_id", null);
+  if (sp.incomplete === "1") q = q.or("roof_system.is.null,address1.is.null,roof_area_sf.is.null");
+
+  const sort = preset ? "age" : sp.sort ?? "recent";
+  q = sort === "age" ? q.order("roof_install_year", { ascending: true, nullsFirst: false }) : q.order("name", { nullsFirst: false });
+  const [{ data, error }, cityRows] = await Promise.all([
+    q.limit(500),
+    sb.from("property").select("city").eq("tenant_id", tenantId).is("duplicate_of", null).not("city", "is", null).limit(5000),
+  ]);
+  if (error) return { rows: [], error: error.message, capped: false, cities: [] };
+
+  const counts = new Map<string, number>();
+  for (const r of cityRows.data ?? []) if (r.city) counts.set(r.city, (counts.get(r.city) ?? 0) + 1);
+  const cities = [...counts.entries()]
+    .map(([city, n]) => ({ city, n }))
+    .sort((a, b) => b.n - a.n)
+    .slice(0, 8);
+
+  let rows = (data ?? []).filter((r) => !mine || (r.account_id && mine.has(r.account_id)));
+  const ids = rows.map((r) => r.id);
+  const [touches, opps, accts] = await Promise.all([
+    inChunks(ids, (ch) => sb.from("touch").select("property_id,occurred_at").eq("tenant_id", tenantId).in("property_id", ch).is("voided_at", null).order("occurred_at", { ascending: false }).limit(2000)),
+    inChunks(ids, (ch) =>
+      sb.from("opportunity").select("property_id,value_estimate").eq("tenant_id", tenantId).in("property_id", ch).not("stage", "in", "(won,lost)"),
+    ),
+    inChunks([...new Set(rows.map((r) => r.account_id).filter((x): x is string => !!x))], (ch) => sb.from("account").select("id,name").in("id", ch)),
+  ]);
+  const last = new Map<string, string>();
+  for (const t of touches) if (t.property_id && !last.has(t.property_id)) last.set(t.property_id, t.occurred_at);
+  const oppVal = new Map<string, { v: number; n: number }>();
+  for (const o of opps) {
+    if (!o.property_id) continue;
+    const cur = oppVal.get(o.property_id) ?? { v: 0, n: 0 };
+    oppVal.set(o.property_id, { v: cur.v + Number(o.value_estimate ?? 0), n: cur.n + 1 });
+  }
+  const an = new Map(accts.map((a) => [a.id, a.name]));
+  const now = new Date();
+
+  if (sp.opp === "1") rows = rows.filter((r) => oppVal.has(r.id));
+  if (preset) rows = rows.filter((r) => {
+    const d = daysSince(last.get(r.id), now);
+    return d == null || d > 60;
+  });
+  if (sort === "recent") {
+    rows = [...rows].sort((a, b) => (last.get(b.id) ?? "").localeCompare(last.get(a.id) ?? ""));
+  }
+
+  return {
+    cities,
+    error: null,
+    capped: rows.length > 150,
+    rows: rows.slice(0, 150).map((r) => ({
+      id: r.id,
+      name: r.name || r.address1 || "Unnamed property",
+      address: r.address1,
+      city: r.city,
+      account_id: r.account_id,
+      account_name: r.account_id ? an.get(r.account_id) ?? null : null,
+      roof_system: r.roof_system,
+      roof_install_year: r.roof_install_year,
+      roof_area_sf: r.roof_area_sf == null ? null : Number(r.roof_area_sf),
+      warranty_expires_on: r.warranty_expires_on,
+      open_value: oppVal.get(r.id)?.v ?? 0,
+      open_count: oppVal.get(r.id)?.n ?? 0,
+      last_touch_at: last.get(r.id) ?? null,
+      days: daysSince(last.get(r.id), now),
+      incomplete: !r.roof_system || !r.address1 || r.roof_area_sf == null,
+    })),
+  };
+}

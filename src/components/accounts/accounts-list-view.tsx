@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ACCOUNT_TYPES } from "@/lib/domain/vocab";
 import { AccountRow, type AccountRowData } from "@/components/accounts/account-row";
-import { Empty, ErrorNote, PageHeader } from "@/components/ui/bits";
+import { Empty, ErrorNote } from "@/components/ui/bits";
+import { BookTabs } from "@/components/accounts/book-tabs";
 import { btn, cn, input } from "@/components/ui/styles";
 import { IconPlus, IconSearch } from "@/components/icons";
 
@@ -26,23 +27,21 @@ export function AccountsListView({ sp, scope, q, data, error }: { sp: SP; scope:
 
   return (
     <div>
-      <PageHeader
-        title="Accounts"
-        action={
-          <Link href="/app/accounts/new" className={btn("secondary", "md")}>
-            <IconPlus size={18} /> New
-          </Link>
-        }
-      />
+      <BookTabs active="accounts" />
 
-      <form method="get" action="/app/accounts" className="flex flex-col gap-2 px-4">
+      <form method="get" action="/app/accounts" className="mt-3 flex flex-col gap-2 px-4">
         <input type="hidden" name="scope" value={scope} />
         {sp.state && <input type="hidden" name="state" value={sp.state} />}
-        <label className="relative block">
-          <span className="sr-only">Search accounts</span>
-          <IconSearch size={20} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input name="q" defaultValue={sp.q ?? ""} placeholder="Search by name" className={`${input} pl-10`} type="search" autoComplete="off" />
-        </label>
+        <div className="flex gap-2">
+          <label className="relative block min-w-0 flex-1">
+            <span className="sr-only">Search accounts</span>
+            <IconSearch size={20} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+            <input name="q" defaultValue={sp.q ?? ""} placeholder="Search accounts" className={`${input} pl-10`} type="search" autoComplete="off" />
+          </label>
+          <Link href="/app/accounts/new" className={btn("secondary", "md", "shrink-0")}>
+            <IconPlus size={18} /> Account
+          </Link>
+        </div>
         <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
           <select name="type" defaultValue={sp.type ?? ""} className={input} aria-label="Account type">
             <option value="">Any type</option>

@@ -4,6 +4,8 @@ import { quickCreateContact, getContactOption } from "@/lib/actions/log";
 import type { ContactOption, SimilarContact } from "@/lib/actions/log-types";
 import { PERSONA_ROLES } from "@/lib/domain/vocab";
 import { btn, cn, input, labelText } from "@/components/ui/styles";
+import { SearchPicker } from "@/components/ui/search-picker";
+import { quickCreateAccount, searchAccountOptions, type PickOption } from "@/lib/actions/book";
 
 /**
  * "Add person I met" — name, title, role, phone, email. Checks for duplicates before creating
@@ -16,7 +18,10 @@ export function QuickContactForm({
   onDone,
   onCancel,
   submitLabel = "Add contact",
+  pickAccount = false,
 }: {
+  /** Show a searchable account picker (with inline create) when the contact isn't created inside an account. */
+  pickAccount?: boolean;
   accountId?: string | null;
   propertyId?: string | null;
   source?: "rep" | "field";
@@ -28,11 +33,12 @@ export function QuickContactForm({
   const [dupes, setDupes] = useState<SimilarContact[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [pickedAccount, setPickedAccount] = useState<PickOption | null>(null);
 
   const submit = (force: boolean) =>
     start(async () => {
       setError(null);
-      const r = await quickCreateContact({ ...f, accountId, propertyId, source, force });
+      const r = await quickCreateContact({ ...f, accountId: accountId ?? pickedAccount?.id ?? null, propertyId, source, force });
       if (r.ok) {
         setDupes(null);
         onDone(r.contact, true);
@@ -112,6 +118,18 @@ export function QuickContactForm({
           <input className={input} value={f.email} onChange={set("email")} type="email" inputMode="email" />
         </label>
       </div>
+      {pickAccount && !accountId && (
+        <SearchPicker
+          name="account_id"
+          label="Account"
+          search={searchAccountOptions}
+          create={quickCreateAccount}
+          initial={pickedAccount}
+          onChange={setPickedAccount}
+          placeholder="Company they work for"
+          hint="Optional, but contacts on an account rank, route and close follow-ups properly."
+        />
+      )}
       {error && (
         <p role="alert" className="text-sm text-danger">
           {error}

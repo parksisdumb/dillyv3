@@ -11,12 +11,16 @@ import { MeView } from "@/components/team/me-view";
 import { CityChips, GoHeader } from "@/components/go/go-chrome";
 import { FieldSession } from "@/components/go/field-session";
 import { FocusSession } from "@/components/go/focus-session";
+import { ContactsListView } from "@/components/accounts/contacts-list-view";
+import { PropertiesListView } from "@/components/accounts/properties-list-view";
+import { ContactDetailView } from "@/components/accounts/contact-detail-view";
+import { PropertyDetailView } from "@/components/accounts/property-detail-view";
 import { fixtures } from "@/app/preview/fixtures";
 import { PreviewLogSheet, PreviewToast } from "@/app/preview/preview-client";
 
 export const dynamic = "force-dynamic";
 
-// Screens: today, go, go-focus, accounts, account, log-1, log-2, log-3, log-toast, pipeline, team, approvals, me
+// Screens: contacts, properties, properties-stale, contact, property, property-empty, today, go, go-focus, accounts, account, log-1, log-2, log-3, log-toast, pipeline, team, approvals, me
 
 export default async function PreviewPage({ params }: { params: Promise<{ screen: string }> }) {
   if (process.env.DILLY_PREVIEW !== "1") notFound();
@@ -80,6 +84,37 @@ export default async function PreviewPage({ params }: { params: Promise<{ screen
           <PreviewToast text="+10 · follow-up closed · next: Follow up with Dave Morales after visit Thu" />
         </>
       );
+      break;
+    case "contacts":
+      active = "/app/contacts";
+      body = <ContactsListView sp={{}} rows={f.contactsList} />;
+      break;
+    case "properties":
+      active = "/app/properties";
+      body = <PropertiesListView sp={{}} rows={f.propertiesList} cities={f.propertyCities} today={f.today} />;
+      break;
+    case "properties-stale":
+      active = "/app/properties";
+      body = (
+        <PropertiesListView
+          sp={{ stale: "1" }}
+          rows={[...f.propertiesList].filter((r) => r.roof_install_year && (r.days == null || r.days > 60)).sort((a, b) => (a.roof_install_year ?? 0) - (b.roof_install_year ?? 0))}
+          cities={f.propertyCities}
+          today={f.today}
+        />
+      );
+      break;
+    case "contact":
+      active = "/app/contacts";
+      body = <ContactDetailView d={f.contactDetail} />;
+      break;
+    case "property":
+      active = "/app/properties";
+      body = <PropertyDetailView d={f.propertyDetail} />;
+      break;
+    case "property-empty":
+      active = "/app/properties";
+      body = <PropertyDetailView d={f.propertyEmpty} />;
       break;
     case "pipeline":
       active = "/app/pipeline";

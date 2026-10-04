@@ -1,11 +1,21 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/bits";
-import { cn } from "@/components/ui/styles";
+import { btn, cn } from "@/components/ui/styles";
+import { IconPlus } from "@/components/icons";
 
 export function GoHeader({ mode }: { mode: "field" | "focus" }) {
   return (
     <>
-      <PageHeader title={mode === "field" ? "Field session" : "Focus session"} />
+      <PageHeader
+        title={mode === "field" ? "Field session" : "Focus session"}
+        action={
+          mode === "field" ? (
+            <Link href="/app/contacts/new?source=field&back=/app/go" className={btn("secondary", "md", "shrink-0")}>
+              <IconPlus size={18} /> Person
+            </Link>
+          ) : undefined
+        }
+      />
       <div className="mx-4 mb-3 grid grid-cols-2 gap-1 rounded-lg bg-surface-2 p-1" role="tablist" aria-label="Session type">
         {(["field", "focus"] as const).map((m) => (
           <Link

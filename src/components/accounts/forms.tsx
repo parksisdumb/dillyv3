@@ -5,6 +5,8 @@ import { ACCOUNT_TYPES, PERSONA_ROLES } from "@/lib/domain/vocab";
 import { ActionForm } from "@/components/ui/action-form";
 import { SelectField, TextArea, TextField, opts } from "@/components/ui/fields";
 import type { Member } from "@/lib/server/members";
+import { SearchPicker } from "@/components/ui/search-picker";
+import { quickCreateAccount, searchAccountOptions, type PickOption } from "@/lib/actions/book";
 
 type AccountValues = {
   id?: string;
@@ -76,12 +78,21 @@ type PropertyValues = {
 const ROOF_SYSTEMS = ["TPO", "EPDM", "PVC", "Mod-bit", "BUR", "Metal", "Shingle", "Coating", "Other"];
 const ASSET_CLASSES = ["Multifamily", "Office", "Industrial", "Retail", "K-12", "Higher ed", "Healthcare", "Hospitality", "Government", "Religious", "Mixed use", "Other"];
 
-export function PropertyForm({ p, accounts }: { p: PropertyValues; accounts?: { id: string; name: string }[] }) {
+/** `account` given = show a searchable account picker (standalone create / edit); omitted = fixed to p.account_id. */
+export function PropertyForm({ p, account }: { p: PropertyValues; account?: PickOption | null }) {
   return (
     <ActionForm action={saveProperty} submitLabel={p.id ? "Save property" : "Add property"} stickySubmit className="px-4 pt-2">
       {p.id && <input type="hidden" name="id" value={p.id} />}
-      {accounts ? (
-        <SelectField label="Account" name="account_id" options={accounts.map((a) => ({ value: a.id, label: a.name }))} defaultValue={p.account_id} placeholder="None" />
+      {account !== undefined ? (
+        <SearchPicker
+          name="account_id"
+          label="Account"
+          search={searchAccountOptions}
+          create={quickCreateAccount}
+          initial={account}
+          placeholder="Owner or manager"
+          hint="Optional — link the owner or property manager so it shows up in their portfolio."
+        />
       ) : (
         p.account_id && <input type="hidden" name="account_id" value={p.account_id} />
       )}
@@ -126,7 +137,7 @@ type ContactValues = {
   do_not_contact: boolean;
 };
 
-export function ContactEditForm({ c, accounts }: { c: ContactValues; accounts: { id: string; name: string }[] }) {
+export function ContactEditForm({ c, account }: { c: ContactValues; account: PickOption | null }) {
   return (
     <ActionForm action={saveContact} submitLabel="Save contact" className="px-4 pt-2">
       <input type="hidden" name="id" value={c.id} />
@@ -135,7 +146,7 @@ export function ContactEditForm({ c, accounts }: { c: ContactValues; accounts: {
         <TextField label="Title" name="title" defaultValue={c.title} />
         <SelectField label="Role" name="persona_role" options={opts(PERSONA_ROLES)} defaultValue={c.persona_role} />
       </div>
-      <SelectField label="Account" name="account_id" options={accounts.map((a) => ({ value: a.id, label: a.name }))} defaultValue={c.account_id} placeholder="None" />
+      <SearchPicker name="account_id" label="Account" search={searchAccountOptions} create={quickCreateAccount} initial={account} placeholder="Company they work for" hint="Clear it to unlink the account." />
       <div className="grid grid-cols-2 gap-3">
         <TextField label="Mobile" name="mobile" type="tel" inputMode="tel" defaultValue={c.mobile} />
         <TextField label="Office phone" name="phone" type="tel" inputMode="tel" defaultValue={c.phone} />

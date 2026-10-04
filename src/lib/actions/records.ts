@@ -7,6 +7,7 @@ import { ctx, dbMessage, formObject, zodFail } from "@/lib/server/ctx";
 import { keysEnum, optUuid, splitName } from "@/lib/server/zod-helpers";
 import { OPEN_STAGES, PERSONA_ROLES, SERVICE_LINES, STAGES } from "@/lib/domain/vocab";
 import type { ActionState } from "@/lib/actions/state";
+import { normalizeAddress } from "@/lib/domain/book";
 
 const optStr = (max: number) => z.string().trim().max(max).optional();
 const optNum = z.coerce.number().nonnegative().optional();
@@ -95,23 +96,25 @@ export async function saveProperty(_: ActionState, fd: FormData): Promise<Action
     const { error } = await sb.from("property").update(row).eq("tenant_id", tenantId).eq("id", id);
     if (error) return { ok: false, error: dbMessage(error, "save the property") };
   } else {
-    if (v.address1) {
+    const norm = normalizeAddress(v.address1, v.city);
+    if (norm && fd.get("force") !== "1") {
       const { data: same } = await sb
         .from("property")
         .select("id,name,address1")
         .eq("tenant_id", tenantId)
         .is("duplicate_of", null)
-        .ilike("address1", v.address1)
-        .ilike("city", v.city ?? "%")
+        .eq("normalized_address", norm)
         .limit(1);
-      if (same && same.length && fd.get("force") !== "1")
-        return { ok: false, error: `${same[0].name ?? same[0].address1} is already at that address. Tick “Create anyway” if it's a different building.` };
+      if (same && same.length)
+        return { ok: false, error: `${same[0].name ?? same[0].address1} is already at that address. Open it, or tick “Create anyway” if it's a different building.` };
     }
-    const { error } = await sb.from("property").insert({ ...row, tenant_id: tenantId, source: "rep", created_by: s.userId });
-    if (error) return { ok: false, error: dbMessage(error, "add the property") };
+    const { data, error } = await sb.from("property").insert({ ...row, tenant_id: tenantId, source: "rep", created_by: s.userId }).select("id").single();
+    if (error || !data) return { ok: false, error: dbMessage(error, "add the property") };
+    revalidatePath("/app", "layout");
+    redirect(`/app/properties/${data.id}`);
   }
   revalidatePath("/app", "layout");
-  redirect(v.account_id ? `/app/accounts/${v.account_id}` : "/app/accounts");
+  return { ok: true, message: "Property saved" };
 }
 
 // --- Opportunity ---------------------------------------------------------------------------------------

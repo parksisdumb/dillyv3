@@ -10,7 +10,7 @@ export function BottomNav({ isManager, activeHref }: { isManager: boolean; activ
   const tabs = [
     { href: "/app/today", label: "Today", Icon: IconToday },
     { href: "/app/go", label: "Go", Icon: IconGo },
-    { href: "/app/accounts", label: "Accounts", Icon: IconAccounts },
+    { href: "/app/accounts", label: "Accounts", Icon: IconAccounts, also: ["/app/contacts", "/app/properties"] },
     { href: "/app/pipeline", label: "Pipeline", Icon: IconPipeline },
     isManager ? { href: "/app/team", label: "Team", Icon: IconTeam } : { href: "/app/me", label: "Me", Icon: IconUser },
   ];
@@ -20,8 +20,9 @@ export function BottomNav({ isManager, activeHref }: { isManager: boolean; activ
       className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)]"
     >
       <ul className="mx-auto grid max-w-3xl grid-cols-5">
-        {tabs.map(({ href, label, Icon }) => {
-          const active = path === href || path.startsWith(href + "/");
+        {tabs.map(({ href, label, Icon, ...rest }) => {
+          const also: string[] = ("also" in rest && rest.also) || [];
+          const active = [href, ...also].some((h) => path === h || path.startsWith(h + "/"));
           return (
             <li key={href}>
               <Link

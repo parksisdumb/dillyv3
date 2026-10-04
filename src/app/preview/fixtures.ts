@@ -12,6 +12,9 @@ import type { ApprovalRow } from "@/components/team/approvals-view";
 import type { MeData } from "@/components/team/me-view";
 import type { FocusItem, Stop } from "@/components/go/types";
 import type { ContactOption, LogContextData } from "@/lib/actions/log-types";
+import type { ContactListRow, PropertyListRow } from "@/lib/server/book";
+import type { ContactDetailData } from "@/components/accounts/contact-detail-view";
+import type { PropertyDetailData } from "@/components/accounts/property-detail-view";
 
 const TZ = "America/Chicago";
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
@@ -426,5 +429,144 @@ export function fixtures() {
     today,
   };
 
-  return { today, session, todayData, accounts, account, pipeline, team, approvals, me, austinStops, cities, focus, logData, logContacts, points: DEFAULT_POINTS };
+
+  const now = new Date();
+  const ago = (d: number | null) => (d == null ? null : new Date(now.getTime() - d * 86_400_000).toISOString());
+  const crow = (n: number, name: string, title: string | null, role: string, acct: string | null, acctName: string | null, days: number | null, extra: Partial<ContactListRow> = {}): ContactListRow => ({
+    id: id(n),
+    name,
+    title,
+    persona_role: role,
+    account_id: acct,
+    account_name: acctName,
+    last_touch_at: ago(days),
+    days,
+    phone: "512-555-01" + String(n).slice(-2),
+    email: name.split(" ")[0].toLowerCase() + "@example.com",
+    bounced: false,
+    quiet: false,
+    dupe: false,
+    do_not_contact: false,
+    ...extra,
+  });
+  const contactsList: ContactListRow[] = [
+    crow(201, "Dave Morales", "Regional Facilities Director", "economic_buyer", A.greystar, "Greystar — Austin", 4),
+    crow(203, "Marcus Lee", "Maintenance Supervisor", "user", A.asset, "Asset Living", 2, { email: null }),
+    crow(202, "Jen Park", "Regional Property Manager", "evaluator", A.rpm, "RPM Living — DFW", 7, { dupe: true }),
+    crow(209, "Jennifer Park", "Property Manager", "evaluator", A.rpm, "RPM Living — DFW", 41, { dupe: true, quiet: true }),
+    crow(210, "Tom Reyes", "VP Asset Management", "economic_buyer", A.lincoln, "Lincoln Property Co", 22, { quiet: true }),
+    crow(204, "Ana Ruiz", "Community Manager", "initiator", A.cortland, "Cortland — Round Rock", 1, { phone: null }),
+    crow(211, "Kevin Walsh", "Chief Engineer", "user", A.pinnacle, "Pinnacle Property Management", null),
+    crow(212, "Brianna Cole", null, "unknown", null, null, 9, { bounced: true }),
+    crow(207, "Maria Chen", "Leasing Office", "gatekeeper", A.greystar, "Greystar — Austin", 16),
+  ];
+
+  const year = Number(today.slice(0, 4));
+  const prow = (n: number, name: string, address: string | null, city: string, acct: string | null, acctName: string | null, roof: string | null, installed: number | null, sf: number | null, days: number | null, extra: Partial<PropertyListRow> = {}): PropertyListRow => ({
+    id: id(n),
+    name,
+    address,
+    city,
+    account_id: acct,
+    account_name: acctName,
+    roof_system: roof,
+    roof_install_year: installed,
+    roof_area_sf: sf,
+    warranty_expires_on: null,
+    open_value: 0,
+    open_count: 0,
+    last_touch_at: ago(days),
+    days,
+    incomplete: !roof || !address || sf == null,
+    ...extra,
+  });
+  const propertiesList: PropertyListRow[] = [
+    prow(401, "Riverside Apartments", "1801 S Pleasant Valley Rd", "Austin", A.greystar, "Greystar — Austin", "TPO", 2009, 186000, 4, { open_value: 160000, open_count: 1, warranty_expires_on: addDays(today, -400) }),
+    prow(406, "Preston Hollow Village", "6200 Averill Way", "Dallas", A.lincoln, "Lincoln Property Co", "BUR", 2001, 142000, 88, { open_value: 18000, open_count: 1 }),
+    prow(404, "Crestview Station — Bldg C", "7101 Woodrow Ave", "Austin", A.asset, "Asset Living", "Mod-bit", 2008, 52000, 2, { open_value: 31000, open_count: 1 }),
+    prow(407, "Legacy Oaks", "4500 Legacy Dr", "Plano", A.rpm, "RPM Living — DFW", "TPO", 2012, 98000, 7, { warranty_expires_on: addDays(today, 150), open_value: 72000, open_count: 1 }),
+    prow(405, "Mueller Commons", "1900 Aldrich St", "Austin", A.pinnacle, "Pinnacle Property Management", "EPDM", 2004, 61000, null),
+    prow(402, "Eastside Lofts", "1100 E 5th St", "Austin", A.greystar, "Greystar — Austin", "Mod-bit", 2014, 64000, 3, { open_value: 24000, open_count: 1 }),
+    prow(408, "Oak Creek Retail Center", "8820 Burnet Rd", "Austin", null, null, null, null, null, null),
+    prow(403, "The Domain Flats", "11400 Domain Dr", "Austin", A.greystar, "Greystar — Austin", null, null, null, 30),
+  ];
+  const propertyCities = [
+    { city: "Austin", n: 212 },
+    { city: "Dallas", n: 96 },
+    { city: "Plano", n: 41 },
+    { city: "San Antonio", n: 38 },
+    { city: "Round Rock", n: 27 },
+  ];
+
+  const contactDetail: ContactDetailData = {
+    today,
+    c: {
+      id: id(201),
+      full_name: "Dave Morales",
+      first_name: "Dave",
+      title: "Regional Facilities Director",
+      persona_role: "economic_buyer",
+      email: "dmorales@greystar.com",
+      phone: "512-555-0142",
+      mobile: null,
+      linkedin_url: null,
+      account_id: A.greystar,
+      notes: "Board meets the 20th. Prefers texts before 8am.",
+      do_not_contact: false,
+      email_status: "verified",
+      last_touch_at: ago(4),
+      source: "field",
+    },
+    account: { id: A.greystar, label: "Greystar — Austin", sub: "Austin" },
+    properties: [
+      { id: id(401), label: "Riverside Apartments", sub: "1801 S Pleasant Valley Rd, Austin", role: "Signs off on capex" },
+      { id: id(402), label: "Eastside Lofts", sub: "1100 E 5th St, Austin", role: null },
+    ],
+    tasks: [{ id: id(101), title: "Follow up on bid with Dave Morales", due_on: addDays(today, -4), reason: "After bid submitted (email)" }],
+    opps: [{ id: id(301), name: "Riverside — TPO re-roof, Bldgs A–F", stage: "proposal_sent", value_estimate: 160000, next_step: "Board vote follow-up", next_step_due: addDays(today, -4) }],
+    timeline: account.timeline.filter((t) => t.contact_id === id(201)),
+    daysSinceTouch: 4,
+  };
+
+  const propertyDetail: PropertyDetailData = {
+    today,
+    year,
+    p: {
+      id: id(401),
+      account_id: A.greystar,
+      name: "Riverside Apartments",
+      address1: "1801 S Pleasant Valley Rd",
+      city: "Austin",
+      state: "TX",
+      zip: "78741",
+      asset_class: "multifamily",
+      roof_system: "TPO",
+      roof_area_sf: 186000,
+      roof_install_year: 2009,
+      warranty_expires_on: addDays(today, -400),
+      building_count: 6,
+      notes: "Seams failing on B and D, ponding west side of C.",
+    },
+    account: { id: A.greystar, label: "Greystar — Austin", sub: "Austin" },
+    contacts: [
+      { id: id(201), label: "Dave Morales", sub: "Regional Facilities Director", role: "Signs off on capex" },
+      { id: id(206), label: "Luis Ortega", sub: "Maintenance Supervisor", role: "On site daily" },
+    ],
+    tasks: [{ id: id(101), title: "Follow up on bid with Dave Morales", due_on: addDays(today, -4), reason: "After bid submitted (email)" }],
+    opps: [{ id: id(301), name: "Riverside — TPO re-roof, Bldgs A–F", stage: "proposal_sent", value_estimate: 160000, next_step: "Board vote follow-up", next_step_due: addDays(today, -4) }],
+    timeline: account.timeline.slice(0, 2),
+    lastTouchAt: ago(4),
+  };
+  const propertyEmpty: PropertyDetailData = {
+    ...propertyDetail,
+    p: { ...propertyDetail.p, id: id(408), account_id: null, name: "Oak Creek Retail Center", address1: "8820 Burnet Rd", asset_class: null, roof_system: null, roof_area_sf: null, roof_install_year: null, warranty_expires_on: null, building_count: null, notes: null },
+    account: null,
+    contacts: [],
+    tasks: [],
+    opps: [],
+    timeline: [],
+    lastTouchAt: null,
+  };
+
+  return { contactsList, propertiesList, propertyCities, contactDetail, propertyDetail, propertyEmpty, today, session, todayData, accounts, account, pipeline, team, approvals, me, austinStops, cities, focus, logData, logContacts, points: DEFAULT_POINTS };
 }

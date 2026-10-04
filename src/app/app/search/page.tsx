@@ -29,14 +29,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             .select("id,full_name,title,persona_role,account_id,email")
             .eq("tenant_id", tenantId)
             .is("duplicate_of", null)
-            .or(`full_name.ilike.%${q}%,email.ilike.%${q}%`)
+            .or(`full_name.ilike.%${q}%,email.ilike.%${q}%,title.ilike.%${q}%,phone.ilike.%${q}%,mobile.ilike.%${q}%`)
             .limit(10),
           sb
             .from("property")
             .select("id,name,address1,city,account_id")
             .eq("tenant_id", tenantId)
             .is("duplicate_of", null)
-            .or(`name.ilike.%${q}%,address1.ilike.%${q}%`)
+            .or(`name.ilike.%${q}%,address1.ilike.%${q}%,city.ilike.%${q}%`)
             .limit(10),
         ])
       : [{ data: [] }, { data: [] }, { data: [] }];
@@ -50,17 +50,17 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
     <div>
       <form method="get" action="/app/search" className="px-4 pt-4" role="search">
         <label className="relative block">
-          <span className="sr-only">Search accounts, people, buildings</span>
+          <span className="sr-only">Search accounts, contacts, properties</span>
           <IconSearch size={20} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input name="q" defaultValue={raw ?? ""} autoFocus type="search" placeholder="Accounts, people, buildings" className={`${input} pl-10 text-xl`} autoComplete="off" />
+          <input name="q" defaultValue={raw ?? ""} autoFocus type="search" placeholder="Accounts, contacts, properties" className={`${input} pl-10 text-xl`} autoComplete="off" />
         </label>
       </form>
-      {q.length < 2 && <p className="px-4 py-6 text-sm text-muted">Type at least 2 letters. Searches company names, people (name or email) and building names or addresses.</p>}
+      {q.length < 2 && <p className="px-4 py-6 text-sm text-muted">Type at least 2 letters. Searches account names, contacts (name, email, phone, title) and properties (name, address, city).</p>}
       {none && <p className="px-4 py-6 text-base">Nothing matches “{q}”.</p>}
 
       {!!accounts.data?.length && (
         <>
-          <SectionTitle>Accounts</SectionTitle>
+          <SectionTitle action={<Link href={`/app/accounts?scope=all&q=${encodeURIComponent(q)}`} className="label inline-flex min-h-12 items-center px-2 text-xs text-accent">All accounts</Link>}>Accounts</SectionTitle>
           <ul className="divide-y divide-line border-y border-line bg-surface">
             {accounts.data.map((a) => (
               <li key={a.id}>
@@ -79,7 +79,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       )}
       {!!contacts.data?.length && (
         <>
-          <SectionTitle>People</SectionTitle>
+          <SectionTitle action={<Link href={`/app/contacts?scope=all&q=${encodeURIComponent(q)}`} className="label inline-flex min-h-12 items-center px-2 text-xs text-accent">All contacts</Link>}>Contacts</SectionTitle>
           <ul className="divide-y divide-line border-y border-line bg-surface">
             {contacts.data.map((c) => (
               <li key={c.id}>
@@ -99,7 +99,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
       )}
       {!!properties.data?.length && (
         <>
-          <SectionTitle>Buildings</SectionTitle>
+          <SectionTitle action={<Link href={`/app/properties?q=${encodeURIComponent(q)}`} className="label inline-flex min-h-12 items-center px-2 text-xs text-accent">All properties</Link>}>Properties</SectionTitle>
           <ul className="divide-y divide-line border-y border-line bg-surface">
             {properties.data.map((p) => (
               <li key={p.id}>

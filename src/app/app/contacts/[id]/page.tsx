@@ -1,16 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ctx } from "@/lib/server/ctx";
 import { TOUCH_COLS, withNames } from "@/lib/server/timeline";
-import { PERSONA_ROLES, type PersonaRole } from "@/lib/domain/vocab";
-import { Chip, Empty, PageHeader, SectionTitle } from "@/components/ui/bits";
-import { btn } from "@/components/ui/styles";
-import { LogContext } from "@/components/log/log-provider";
-import { LogButton } from "@/components/log/log-button";
-import { TouchTimeline } from "@/components/accounts/touch-timeline";
-import { ContactEditForm } from "@/components/accounts/forms";
-import { IconMail, IconPhone } from "@/components/icons";
+import { daysSince } from "@/lib/domain/book";
+import { ContactDetailView } from "@/components/accounts/contact-detail-view";
 
 export const metadata: Metadata = { title: "Contact" };
 
@@ -18,56 +11,40 @@ export default async function ContactPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const c = await ctx();
-  const { sb, tenantId } = c;
+  const { sb, tenantId, today } = c;
   const { data: p } = await sb.from("contact").select("*").eq("tenant_id", tenantId).eq("id", id).maybeSingle();
   if (!p) notFound();
-  const [acct, touches, accounts] = await Promise.all([
-    p.account_id ? sb.from("account").select("id,name").eq("id", p.account_id).maybeSingle() : Promise.resolve({ data: null }),
+  const [acct, links, tasks, opps, touches] = await Promise.all([
+    p.account_id ? sb.from("account").select("id,name,city").eq("id", p.account_id).maybeSingle() : Promise.resolve({ data: null }),
+    sb.from("property_contact").select("property_id,role").eq("tenant_id", tenantId).eq("contact_id", id),
+    sb.from("task").select("id,title,due_on,reason").eq("tenant_id", tenantId).eq("contact_id", id).eq("status", "open").order("due_on"),
+    sb
+      .from("opportunity")
+      .select("id,name,stage,value_estimate,next_step,next_step_due")
+      .eq("tenant_id", tenantId)
+      .eq("primary_contact_id", id)
+      .order("stage_changed_at", { ascending: false }),
     sb.from("touch").select(TOUCH_COLS).eq("tenant_id", tenantId).eq("contact_id", id).order("occurred_at", { ascending: false }).limit(40),
-    sb.from("account").select("id,name").eq("tenant_id", tenantId).is("duplicate_of", null).order("name").limit(800),
   ]);
-  const timeline = await withNames(c, touches.data ?? []);
-  const phone = p.mobile ?? p.phone;
+  const propIds = (links.data ?? []).map((l) => l.property_id);
+  const { data: props } = propIds.length ? await sb.from("property").select("id,name,address1,city").in("id", propIds) : { data: [] };
+  const pm = new Map((props ?? []).map((x) => [x.id, x]));
 
   return (
-    <div>
-      <LogContext contactId={id} accountId={p.account_id} />
-      <PageHeader
-        back={p.account_id ? `/app/accounts/${p.account_id}` : "/app/accounts"}
-        title={p.full_name ?? "Unnamed contact"}
-        sub={
-          <span className="flex flex-wrap items-center gap-2">
-            {p.title && <span>{p.title}</span>}
-            <Chip>{PERSONA_ROLES[p.persona_role as PersonaRole] ?? p.persona_role}</Chip>
-            {acct.data && (
-              <Link className="underline decoration-line underline-offset-2" href={`/app/accounts/${acct.data.id}`}>
-                {acct.data.name}
-              </Link>
-            )}
-            {p.do_not_contact && <Chip tone="bad">Do not contact</Chip>}
-            {p.email_status === "bounced" && <Chip tone="bad">Email bounced</Chip>}
-          </span>
-        }
-      />
-      <div className="flex gap-2 px-4 pt-2">
-        <LogButton target={{ contactId: id, accountId: p.account_id }} variant="primary" className="flex-1" label={`Log with ${p.first_name ?? "them"}`} />
-        {phone && !p.do_not_contact && (
-          <a href={`tel:${phone}`} className={btn("secondary", "md")} aria-label="Call">
-            <IconPhone size={20} />
-          </a>
-        )}
-        {p.email && !p.do_not_contact && (
-          <a href={`mailto:${p.email}`} className={btn("secondary", "md")} aria-label="Email">
-            <IconMail size={20} />
-          </a>
-        )}
-      </div>
-
-      <SectionTitle>Timeline</SectionTitle>
-      {timeline.length === 0 ? <Empty title="No touches yet" /> : <TouchTimeline touches={timeline} />}
-
-      <SectionTitle>Details</SectionTitle>
-      <ContactEditForm c={p} accounts={accounts.data ?? []} />
-    </div>
+    <ContactDetailView
+      d={{
+        today,
+        c: p,
+        account: acct.data ? { id: acct.data.id, label: acct.data.name, sub: acct.data.city } : null,
+        properties: (links.data ?? []).flatMap((l) => {
+          const x = pm.get(l.property_id);
+          return x ? [{ id: x.id, label: x.name || x.address1 || "Property", sub: [x.address1, x.city].filter(Boolean).join(", ") || null, role: l.role }] : [];
+        }),
+        tasks: tasks.data ?? [],
+        opps: opps.data ?? [],
+        timeline: await withNames(c, touches.data ?? []),
+        daysSinceTouch: daysSince(p.last_touch_at, new Date()),
+      }}
+    />
   );
 }

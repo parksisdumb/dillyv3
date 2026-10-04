@@ -43,7 +43,7 @@ export function ContactPicker({
   if (adding) {
     return (
       <div className="rounded-lg border-2 border-line p-3">
-        <QuickContactForm accountId={accountId} onDone={(c) => onPick(c)} onCancel={() => setAdding(false)} />
+        <QuickContactForm accountId={accountId} source="field" pickAccount={!accountId} onDone={(c) => onPick(c)} onCancel={() => setAdding(false)} />
       </div>
     );
   }
