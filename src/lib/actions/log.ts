@@ -6,7 +6,8 @@ import { log } from "@/lib/observability/log";
 import { requestInfo } from "@/lib/observability/request";
 import { ctx, dbMessage } from "@/lib/server/ctx";
 import { keysEnum, optUuid, cleanQuery, splitName } from "@/lib/server/zod-helpers";
-import { CHANNELS, OUTCOMES, PERSONA_ROLES } from "@/lib/domain/vocab";
+import { CHANNELS, MANAGER_ROLES, OUTCOMES, PERSONA_ROLES } from "@/lib/domain/vocab";
+import { backdateLimitDays, checkOccurredAt } from "@/lib/domain/backdate";
 import { mergePointRules } from "@/lib/domain/points";
 import { localDate, logToast } from "@/lib/format";
 import { pathInTenants, parseMediaPath } from "@/lib/storage/paths";
@@ -70,7 +71,7 @@ export async function loadLogContext(target: LogTarget): Promise<LogContextData>
     accountId = data?.account_id ?? null;
   }
 
-  const [acct, contacts, props, opps, rules] = await Promise.all([
+  const [acct, contacts, props, opps, rules, tenantRow] = await Promise.all([
     accountId ? sb.from("account").select("id,name").eq("tenant_id", tenantId).eq("id", accountId).maybeSingle() : Promise.resolve({ data: null }),
     accountId
       ? sb.from("contact").select(CONTACT_COLS).eq("tenant_id", tenantId).eq("account_id", accountId).is("duplicate_of", null).order("last_touch_at", { ascending: false, nullsFirst: false }).limit(50)
@@ -82,6 +83,7 @@ export async function loadLogContext(target: LogTarget): Promise<LogContextData>
       ? sb.from("opportunity").select("id,name").eq("tenant_id", tenantId).eq("account_id", accountId).not("stage", "in", "(won,lost)").limit(20)
       : Promise.resolve({ data: [] as { id: string; name: string }[] }),
     sb.from("point_rule").select("tenant_id,event,points").or(`tenant_id.is.null,tenant_id.eq.${tenantId}`),
+    (MANAGER_ROLES as string[]).includes(s.tenant.role) ? Promise.resolve({ data: null }) : sb.from("tenant").select("settings").eq("id", tenantId).maybeSingle(),
   ]);
 
   // No context (the floating Log button on Today, Pipeline…): offer the people I touched most recently so the
@@ -96,6 +98,8 @@ export async function loadLogContext(target: LogTarget): Promise<LogContextData>
     opportunities: (opps.data ?? []).map((o) => ({ id: o.id, name: o.name })),
     points: mergePointRules(rules.data ?? []),
     today,
+    timeZone: s.tenant.timezone,
+    backdateDays: backdateLimitDays(s.tenant.role, tenantRow.data?.settings),
     appointment,
   };
 }
@@ -164,9 +168,6 @@ const mediaSchema = z.object({
   lng: z.number().min(-180).max(180).nullish(),
   caption: z.string().trim().max(300).nullish(),
 });
-
-/** Offline logs can sit on a phone for days; past this they're more confusing than useful. */
-const MAX_BACKDATE_MS = 30 * 86_400_000;
 
 /** No code + a fetch-ish message, a timeout or a connection-class SQLSTATE: the server couldn't reach the DB. */
 function isTransient(e: { code?: string; message?: string } | null | undefined): boolean {
@@ -237,12 +238,19 @@ async function logTouchInner(input: LogInput): Promise<LogResult> {
     tenantId = t.id;
     today = localDate(t.timezone);
   }
+  // Post-dated logs ("When": earlier today / yesterday / a picked time) and offline replays: not in the future,
+  // and reps only go back tenant.settings.backdate_days (default 30). Managers, admins and owners have no limit.
   let occurredAt: string | null = null;
   if (v.occurredAt) {
-    const at = Date.parse(v.occurredAt);
-    if (at < Date.now() - MAX_BACKDATE_MS) return { ok: false, error: "This log is more than 30 days old. Discard it and log it again." };
-    // Phone clocks drift: anything "in the future" is now.
-    if (at < Date.now() - 60_000) occurredAt = new Date(at).toISOString();
+    const role = s.tenants.find((t) => t.id === tenantId)?.role ?? s.tenant.role;
+    let limit: number | null = null;
+    if (!(MANAGER_ROLES as string[]).includes(role)) {
+      const { data: t } = await sb.from("tenant").select("settings").eq("id", tenantId).maybeSingle();
+      limit = backdateLimitDays(role, t?.settings);
+    }
+    const check = checkOccurredAt(v.occurredAt, new Date(), limit);
+    if (!check.ok) return { ok: false, error: check.error };
+    occurredAt = check.at;
   }
   const media = v.media ?? [];
   if (media.length) {

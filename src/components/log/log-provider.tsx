@@ -2,10 +2,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { LogTarget } from "@/lib/actions/log-types";
 import { LogSheet } from "@/components/log/log-sheet";
+import type { WhenChoice } from "@/lib/domain/backdate";
+
+export type OpenLogOptions = { /** "pick" = "Log a past visit": the sheet opens asking when it happened. */ when?: WhenChoice };
 
 type Ctx = {
   /** Open the Log sheet. With no target, uses whatever the current page registered. */
-  openLog: (target?: LogTarget) => void;
+  openLog: (target?: LogTarget, opts?: OpenLogOptions) => void;
   setPageTarget: (t: LogTarget | null) => void;
   /** Screens that are themselves a logging surface (Go sessions) hide the floating button. */
   fabHidden: boolean;
@@ -19,11 +22,13 @@ export function LogProvider({ children }: { children: React.ReactNode }) {
   const pageTarget = useRef<LogTarget | null>(null);
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState<LogTarget>({});
+  const [when, setWhen] = useState<WhenChoice>("now");
   const [nonce, setNonce] = useState(0);
   const [fabHidden, setFabHidden] = useState(false);
 
-  const openLog = useCallback((t?: LogTarget) => {
+  const openLog = useCallback((t?: LogTarget, opts?: OpenLogOptions) => {
     setTarget(t ?? pageTarget.current ?? {});
+    setWhen(opts?.when ?? "now");
     setNonce((n) => n + 1);
     setOpen(true);
   }, []);
@@ -35,7 +40,7 @@ export function LogProvider({ children }: { children: React.ReactNode }) {
   return (
     <LogCtx.Provider value={value}>
       {children}
-      <LogSheet key={nonce} open={open} target={target} onClose={() => setOpen(false)} />
+      <LogSheet key={nonce} open={open} target={target} initialWhen={when} onClose={() => setOpen(false)} />
     </LogCtx.Provider>
   );
 }

@@ -4,7 +4,7 @@
 import { useCallback, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { applySavedMapping, detectMapping, detectPartyRole, headerSignature, mappedEntities, mappingToSaved, type Mapping } from "@/lib/domain/import/fields";
+import { applySavedMapping, detectDefaultType, detectMapping, detectPartyRole, headerSignature, mappedEntities, mappingToSaved, type Mapping } from "@/lib/domain/import/fields";
 import { mapRows } from "@/lib/domain/import/rows";
 import { parseSheet, csvLine, type Sheet } from "@/lib/domain/import/parse";
 import {
@@ -83,7 +83,7 @@ export function ImportWizard({
   const [opts, setOpts] = useState<ImportOptions>(() => ({
     defaultOwnerId: meIsRep ? me : null,
     partyRole: startSheet ? detectPartyRole(startSheet.headers, detectMapping(startSheet.headers)) : "manager",
-    defaultType: "property_mgmt",
+    defaultType: (startSheet ? detectDefaultType(startSheet.headers, detectMapping(startSheet.headers)) : null) ?? "property_mgmt",
   }));
   const [index, setIndex] = useState<ExistingIndex | null>(initial?.index ?? (initial ? { accounts: [], contacts: [], properties: [] } : null));
   const [overrides, setOverrides] = useState<Overrides>({ accounts: {}, contacts: {}, properties: {}, include: {}, ...initial?.overrides });
@@ -112,7 +112,9 @@ export function ImportWizard({
       setOpts((o) => ({
         ...o,
         partyRole: (hit?.options?.partyRole as ImportOptions["partyRole"]) ?? detectPartyRole(s.headers, m),
-        defaultType: ((hit?.options?.defaultType as AccountType) ?? o.defaultType) in ACCOUNT_TYPES ? ((hit?.options?.defaultType as AccountType) ?? o.defaultType) : o.defaultType,
+        defaultType: ((hit?.options?.defaultType as AccountType) ?? detectDefaultType(s.headers, m) ?? o.defaultType) in ACCOUNT_TYPES
+          ? ((hit?.options?.defaultType as AccountType) ?? detectDefaultType(s.headers, m) ?? o.defaultType)
+          : o.defaultType,
       }));
       setOverrides({ accounts: {}, contacts: {}, properties: {}, include: {} });
       setSourceError(s.truncated ? `Only the first ${s.rows.length.toLocaleString()} rows were loaded — split bigger files.` : null);

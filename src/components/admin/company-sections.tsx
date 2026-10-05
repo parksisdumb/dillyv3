@@ -129,7 +129,9 @@ export function TargetingEditor({ tenantName, rows, known }: { tenantName: strin
         {rows.map((t) => (
           <li key={`${t.dimension}:${t.value}`} className="flex items-center gap-3 px-4 py-2">
             <div className="min-w-0 flex-1">
-              <div className="font-semibold">{t.value.replace(/_/g, " ")}</div>
+              <div className="font-semibold">
+                {t.dimension === "account_type" && t.value in ACCOUNT_TYPES ? ACCOUNT_TYPES[t.value as keyof typeof ACCOUNT_TYPES] : t.value.replace(/_/g, " ")}
+              </div>
               <div className="text-sm text-muted">
                 {DIMENSIONS[t.dimension as keyof typeof DIMENSIONS] ?? t.dimension}
                 {t.note && ` · ${t.note}`}

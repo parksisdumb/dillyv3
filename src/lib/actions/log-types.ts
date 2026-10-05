@@ -21,6 +21,10 @@ export type LogContextData = {
   opportunities: { id: string; name: string }[];
   points: Record<string, number>;
   today: string;
+  /** The company's zone: the Log sheet's "When" times are read in it. */
+  timeZone?: string;
+  /** How many days back this person may log (null = no limit: managers+). */
+  backdateDays?: number | null;
   /** Set when logging an appointment's outcome: channel defaults from its kind; >1 building offers "log each building". */
   appointment?: { id: string; title: string; kind: string; channel: string; buildings: number; status: string } | null;
 };
@@ -38,7 +42,7 @@ export type LogInput = LogTarget & {
   idempotencyKey?: string | null;
   /** Photos already uploaded to /api/media (touch.media). Roof walks / inspections with photos earn site-walk points. */
   media?: MediaItem[];
-  /** When the rep actually tapped (offline replays): becomes touch.occurred_at. Defaults to now. */
+  /** When it happened: the Log sheet's "When" (post-dated logs) or the tap time (offline replays). Defaults to now. */
   occurredAt?: string | null;
   /** The company the log was made in (offline replays after a company switch). Must be one of the rep's. */
   tenantId?: string | null;

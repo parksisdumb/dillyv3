@@ -128,7 +128,7 @@ export function ContactDetailView({ d, movePreview, schedule, pursuit }: { d: Co
         </>
       )}
 
-      <SectionTitle>Timeline</SectionTitle>
+      <SectionTitle action={<LogButton target={{ contactId: c.id, accountId: c.account_id }} when="pick" label="Log a past visit" variant="ghost" size="sm" />}>Timeline</SectionTitle>
       {d.timeline.length === 0 ? <Empty title="No touches yet">Log the first one — it sets the follow-up.</Empty> : <TouchTimeline touches={d.timeline} />}
 
       <SectionTitle>Details</SectionTitle>

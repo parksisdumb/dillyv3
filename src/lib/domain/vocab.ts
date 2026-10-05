@@ -67,6 +67,7 @@ export const PRIMARY_CHANNELS: Channel[] = ["site_visit", "door_knock", "call", 
 
 export const ACCOUNT_TYPES = {
   property_mgmt: "Property mgmt",
+  condo_hoa_mgmt: "Condo/HOA management",
   owner: "Owner",
   reit: "REIT",
   institutional: "Institutional",

@@ -151,7 +151,7 @@ export function PropertyDetailView({ d, preview, schedule, pursuit }: { d: Prope
       <Opportunities opps={d.opps} today={today} newHref={`/app/pipeline/new?property=${p.id}${p.account_id ? `&account=${p.account_id}` : ""}`} />
       <LinkedList kind="contacts" selfId={p.id} links={d.contacts} />
 
-      <SectionTitle>Timeline</SectionTitle>
+      <SectionTitle action={<LogButton target={{ propertyId: p.id, accountId: p.account_id }} when="pick" label="Log a past visit" variant="ghost" size="sm" />}>Timeline</SectionTitle>
       {d.timeline.length === 0 ? <Empty title="No touches here yet" /> : <TouchTimeline touches={d.timeline} />}
 
       <SectionTitle>Building & roof details</SectionTitle>

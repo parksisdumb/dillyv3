@@ -96,6 +96,10 @@ insert into migration.value_map(domain, legacy_value, new_value, note) values
   ('account_type', 'Consultant', 'consultant', null),
   ('account_type', 'Vendor', 'vendor', null),
   ('account_type', 'Other', 'other', null),
+  ('account_type', 'HOA', 'condo_hoa_mgmt', null),
+  ('account_type', 'Condo/HOA', 'condo_hoa_mgmt', null),
+  ('account_type', 'HOA Management', 'condo_hoa_mgmt', null),
+  ('account_type', 'Community Association', 'condo_hoa_mgmt', null),
   ('account_type', '<null>', 'other', 'type never set in V2'),
   -- account status -> account_preference (NULL = no preference row)
   ('account_status', 'active', null, null),

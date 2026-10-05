@@ -1,6 +1,9 @@
 import "server-only";
 import type { Ctx } from "@/lib/server/ctx";
 import type { TimelineTouch } from "@/components/accounts/touch-timeline";
+import { isLoggedLater, loggingForLabel } from "@/lib/domain/backdate";
+import { clockLabel, dayLabel, utcToZoned } from "@/lib/domain/appointments";
+import { localDate } from "@/lib/format";
 
 type TouchRow = {
   id: string;
@@ -12,10 +15,19 @@ type TouchRow = {
   contact_id: string | null;
   account_id: string | null;
   voided_at: string | null;
+  created_at?: string | null;
 };
 
+/** "Yesterday · 2:30 PM" / "Tue Oct 1 · 2:30 PM" in the company's zone. */
+function dayClock(iso: string, timeZone: string, today: string): string {
+  const { date, time } = utcToZoned(iso, timeZone);
+  return `${dayLabel(date, today)} · ${clockLabel(time)}`;
+}
+
 /** Attach rep, contact and account names to touch rows. */
-export async function withNames(c: Pick<Ctx, "sb">, rows: TouchRow[]): Promise<TimelineTouch[]> {
+export async function withNames(c: Pick<Ctx, "sb"> & Partial<Pick<Ctx, "s">>, rows: TouchRow[]): Promise<TimelineTouch[]> {
+  const tz = c.s?.tenant.timezone ?? "America/Chicago";
+  const today = localDate(tz);
   const uniq = (xs: (string | null)[]) => [...new Set(xs.filter((x): x is string => !!x))];
   const users = uniq(rows.map((r) => r.user_id));
   const contacts = uniq(rows.map((r) => r.contact_id));
@@ -40,7 +52,11 @@ export async function withNames(c: Pick<Ctx, "sb">, rows: TouchRow[]): Promise<T
     account: r.account_id ? am.get(r.account_id) ?? null : null,
     account_id: r.account_id,
     voided: !!r.voided_at,
+    // Backfilled (entered over an hour after it happened): say when it happened and when it was logged.
+    ...(isLoggedLater(r.occurred_at, r.created_at)
+      ? { logged_later: { when: dayClock(r.occurred_at, tz, today), logged: loggingForLabel(r.created_at!, tz) } }
+      : {}),
   }));
 }
 
-export const TOUCH_COLS = "id,occurred_at,channel,outcome,notes,user_id,contact_id,account_id,voided_at";
+export const TOUCH_COLS = "id,occurred_at,channel,outcome,notes,user_id,contact_id,account_id,voided_at,created_at";

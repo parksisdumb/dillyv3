@@ -68,7 +68,8 @@ export function useLogTouch() {
         try {
           const pending = await queue.enqueue({
             key: k,
-            createdAt: at,
+            // A post-dated log keeps its chosen time; otherwise the time of the tap.
+            createdAt: input.occurredAt ?? at,
             input: stripTransport(input),
             photos: await Promise.all(
               photos.map(async (p) => ({

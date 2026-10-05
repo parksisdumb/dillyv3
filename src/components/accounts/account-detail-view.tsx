@@ -302,7 +302,7 @@ export function AccountDetailView({ d, movePreview, schedule, pursuit }: { d: Ac
       )}
 
       {/* Timeline */}
-      <SectionTitle>Timeline</SectionTitle>
+      <SectionTitle action={<LogButton target={{ accountId: id }} when="pick" label="Log a past visit" variant="ghost" size="sm" />}>Timeline</SectionTitle>
       {timeline.length === 0 ? <Empty title="No touches yet">First touch earns the account a place in your rhythm.</Empty> : <TouchTimeline touches={timeline} />}
     </div>
   );

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { applySavedMapping, detectMapping, detectPartyRole, guessField, headerSignature, mappingToSaved, type Mapping } from "./fields";
+import { applySavedMapping, detectDefaultType, detectMapping, detectPartyRole, guessField, headerSignature, mappingToSaved, type Mapping } from "./fields";
 import { mapRow, mapRows, normalizeName, parseAccountType, parseNumber, parseRoofSystem, similarity, splitName } from "./rows";
 import { accountPayload, contactPayload, liveEntities, planCounts, planImport, propertyPayload, resolveRep, setActions, type ExistingIndex, type PlanOptions } from "./plan";
 import { csvCell, csvLine, parseSheet } from "./parse";
@@ -9,6 +9,16 @@ import { csvCell, csvLine, parseSheet } from "./parse";
 const byField = (headers: string[], m: Mapping) => Object.fromEntries(Object.entries(m).map(([i, f]) => [headers[Number(i)], f]));
 
 describe("header detection", () => {
+  it("maps association columns to Company and defaults their type to Condo/HOA management", () => {
+    for (const h of [["HOA", "Address", "City"], ["Community Association", "Street"], ["COA Management Company", "Address"], ["HOA Name", "Property Name"]]) {
+      const m = detectMapping(h);
+      expect(byField(h, m)[h[0]], h[0]).toBe("account_name");
+      expect(detectDefaultType(h, m), h[0]).toBe("condo_hoa_mgmt");
+    }
+    const pmc = ["Management Company", "Address"];
+    expect(detectDefaultType(pmc, detectMapping(pmc))).toBeNull();
+  });
+
   it("maps the common flat property sheet", () => {
     const h = ["Management Company", "Property Name", "Address", "City", "State", "Zip", "Units", "Roof Type", "Roof Year", "Sq Ft", "First Name", "Last Name", "Title", "Email", "Phone", "Rep Email", "Notes"];
     expect(byField(h, detectMapping(h))).toEqual({
@@ -116,6 +126,10 @@ describe("row mapping and validation", () => {
     expect(parseRoofSystem("Something new")).toBe("Something new");
     expect(parseAccountType("REIT")).toBe("reit");
     expect(parseAccountType("Property Mgmt")).toBe("property_mgmt");
+    for (const v of ["HOA", "Condo", "Condo/HOA", "Community Association", "COA", "HOA Management", "Homeowners Association", "Condo/HOA management", "condo_hoa_mgmt"]) {
+      expect(parseAccountType(v), v).toBe("condo_hoa_mgmt");
+    }
+    expect(parseAccountType("Property Management")).toBe("property_mgmt");
     expect(splitName("Whitfield, Dana")).toEqual({ first: "Dana", last: "Whitfield" });
     expect(splitName("Dr. Dana M. Whitfield Jr.")).toEqual({ first: "Dana", last: "Whitfield" });
     expect(splitName("Cher")).toEqual({ first: "Cher", last: null });

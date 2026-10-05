@@ -2,7 +2,7 @@
 import type { LogTarget } from "@/lib/actions/log-types";
 import { useLog } from "@/components/log/log-provider";
 import { btn, cn } from "@/components/ui/styles";
-import { IconLog } from "@/components/icons";
+import { IconCalendar, IconLog } from "@/components/icons";
 
 /** Inline "Log" button that opens the sheet with a specific context. */
 export function LogButton({
@@ -12,7 +12,10 @@ export function LogButton({
   size = "md",
   className,
   ariaLabel,
+  when,
 }: {
+  /** "pick": open asking when it happened ("Log a past visit"). */
+  when?: "pick";
   ariaLabel?: string;
   target: LogTarget;
   label?: string;
@@ -22,8 +25,8 @@ export function LogButton({
 }) {
   const { openLog } = useLog();
   return (
-    <button type="button" aria-label={ariaLabel} className={btn(variant, size, className)} onClick={() => openLog(target)}>
-      <IconLog size={20} />
+    <button type="button" aria-label={ariaLabel} className={btn(variant, size, className)} onClick={() => openLog(target, when ? { when } : undefined)}>
+      {when ? <IconCalendar size={20} /> : <IconLog size={20} />}
       {label}
     </button>
   );

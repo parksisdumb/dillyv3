@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { loadLogContext } from "@/lib/actions/log";
 import { isQueued, useLogTouch } from "@/components/log/use-log-touch";
@@ -15,6 +15,15 @@ import { btn, cn, input, labelText } from "@/components/ui/styles";
 import { ContactPicker } from "@/components/log/contact-picker";
 import { IconBuilding, IconCalendar, IconChevronDown, IconUser } from "@/components/icons";
 import { addDaysLocal } from "@/lib/domain/appointments";
+import { WHEN_CHOICES, checkOccurredAt, defaultWhen, loggingForLabel, occurredAtFor, pickBounds, type WhenChoice, type WhenState } from "@/lib/domain/backdate";
+
+const browserZone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Chicago";
+  } catch {
+    return "America/Chicago";
+  }
+};
 
 /** Default "When?" for a booked inspection: next weekday at 9:00. */
 function nextWeekdayAfter(today: string): string {
@@ -54,10 +63,13 @@ export function LogSheet({
   target,
   onClose,
   initial,
+  initialWhen = "now",
 }: {
   open: boolean;
   target: LogTarget;
   onClose: () => void;
+  /** "Log a past visit": open with When = Pick date & time (details expanded, site visit pre-picked). */
+  initialWhen?: WhenChoice;
   /** Pre-loaded state (dev preview): skips the server load and opens at a given step. */
   initial?: { data: LogContextData; contact: ContactOption | null; picking?: boolean; channel?: Channel | null; details?: boolean; photos?: PendingPhoto[]; offline?: boolean };
 }) {
@@ -67,9 +79,17 @@ export function LogSheet({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [contact, setContact] = useState<ContactOption | null>(initial?.contact ?? null);
   const [picking, setPicking] = useState(initial?.picking ?? false);
-  const [channel, setChannel] = useState<Channel | null>(initial?.channel ?? null);
+  const pastVisit = initialWhen !== "now";
+  const [channel, setChannel] = useState<Channel | null>(initial?.channel ?? (pastVisit ? "site_visit" : null));
   const [moreChannels, setMoreChannels] = useState(false);
-  const [details, setDetails] = useState(initial?.details ?? false);
+  const [details, setDetails] = useState(initial?.details ?? pastVisit);
+  // When it happened (post-dated logs). "Now" = the server stamps it.
+  const [happened, setHappenedState] = useState<WhenState>(() => defaultWhen(initialWhen, new Date(), initial?.data.timeZone ?? browserZone()));
+  const whenEdited = useRef(false);
+  const setHappened = (w: WhenState) => {
+    whenEdited.current = true;
+    setHappenedState(w);
+  };
   const [notes, setNotes] = useState("");
   const [metRole, setMetRole] = useState<PersonaRole | "">("");
   const [followUpOn, setFollowUpOn] = useState("");
@@ -88,6 +108,8 @@ export function LogSheet({
   const apply = (t: LogTarget, d: LogContextData, preferContact?: ContactOption | null) => {
     setData(d);
     setLoadError(null);
+    // Defaults were computed before the company's zone was known: redo them in it (unless the rep already chose).
+    if (!whenEdited.current && d.timeZone) setHappenedState((h) => (h.choice === "now" ? h : defaultWhen(h.choice, new Date(), d.timeZone!)));
     // Logging an appointment's outcome: the channel comes from what was scheduled (the rep can still change it).
     if (d.appointment) setChannel((ch) => ch ?? (d.appointment!.channel as Channel));
     // On an account, pre-pick its most recent person. With no context the list is "recent people" across
@@ -138,10 +160,33 @@ export function LogSheet({
   };
 
   const appt = data?.appointment ?? null;
+  const tz = data?.timeZone ?? browserZone();
+  const limitDays = data?.backdateDays === undefined ? null : data.backdateDays;
+  const backdated = happened.choice !== "now";
+  const happenedAt = backdated ? occurredAtFor(happened, new Date(), tz) : null;
+  const chooseWhen = (choice: WhenChoice) => {
+    setError(null);
+    setHappened(choice === happened.choice ? happened : defaultWhen(choice, new Date(), tz));
+  };
 
   const submit = (outcome: Outcome, booking?: { date: string; time: string } | null) => {
     if (!channel || !canLog) return;
     setError(null);
+    // Post-dated: check the time here too (the server enforces the same rule) so the rep sees why right away.
+    let occurredAt: string | null = null;
+    if (backdated) {
+      const at = occurredAtFor(happened, new Date(), tz);
+      if (!at) {
+        setError("Pick when it happened.");
+        return;
+      }
+      const check = checkOccurredAt(at, new Date(), limitDays);
+      if (!check.ok) {
+        setError(check.error);
+        return;
+      }
+      occurredAt = at;
+    }
     // Booked inspection (not already an appointment's outcome): ask "When?" first. Skipping is fine.
     if (outcome === "scheduled_inspection" && !appt && booking === undefined) {
       setWhen({ date: data ? nextWeekdayAfter(data.today) : "", time: "09:00" });
@@ -161,6 +206,7 @@ export function LogSheet({
           metRole: metRole || null,
           followUpOn: followUpOn || null,
           skipFollowUp: skip,
+          ...(occurredAt ? { occurredAt } : {}),
           ...(appt ? { appointmentId: appt.id, eachBuilding: appt.buildings > 1 && eachBuilding } : {}),
           ...(booking?.date ? { appointment: { date: booking.date, time: booking.time || null } } : {}),
         },
@@ -296,11 +342,50 @@ export function LogSheet({
                 className="flex min-h-12 w-full items-center gap-2 text-left text-sm text-muted"
               >
                 <IconChevronDown size={18} className={cn("motion-safe:transition-transform", details && "rotate-180")} />
-                <span className="label">Notes, who I met, follow-up, photos</span>
-                {(notes || metRole || followUpOn || skip || propertyId || opportunityId || photos.length > 0) && <span className="size-2 rounded-full bg-accent" aria-label="details set" />}
+                <span className="label">Notes, who I met, follow-up, photos, when</span>
+                {(backdated || notes || metRole || followUpOn || skip || propertyId || opportunityId || photos.length > 0) && <span className="size-2 rounded-full bg-accent" aria-label="details set" />}
               </button>
               {details && (
                 <div className="flex flex-col gap-3 pb-1">
+                  <div className="flex flex-col gap-1.5" role="group" aria-label="When did it happen" data-testid="log-when">
+                    <span className={labelText}>When</span>
+                    <div className="flex flex-wrap gap-2">
+                      {(Object.keys(WHEN_CHOICES) as WhenChoice[]).map((k) => (
+                        <button
+                          key={k}
+                          type="button"
+                          aria-pressed={happened.choice === k}
+                          onClick={() => chooseWhen(k)}
+                          className={cn(
+                            "min-h-11 rounded-full border-2 px-3 text-sm font-semibold",
+                            happened.choice === k ? "border-ink bg-ink text-ground" : "border-line bg-surface text-ink hover:border-ink",
+                          )}
+                        >
+                          {WHEN_CHOICES[k]}
+                        </button>
+                      ))}
+                    </div>
+                    {(happened.choice === "earlier_today" || happened.choice === "yesterday") && (
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-sm text-muted">Time {happened.choice === "yesterday" ? "yesterday" : "today"}</span>
+                        <input className={input} type="time" step={300} value={happened.time} onChange={(e) => setHappened({ ...happened, time: e.target.value })} />
+                      </label>
+                    )}
+                    {happened.choice === "pick" && (
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-sm text-muted">Date & time</span>
+                        <input
+                          className={input}
+                          type="datetime-local"
+                          step={300}
+                          value={happened.at}
+                          {...pickBounds(new Date(), tz, limitDays)}
+                          onChange={(e) => setHappened({ ...happened, at: e.target.value })}
+                        />
+                        {limitDays != null && <span className="text-sm text-muted">Up to {limitDays} days back.</span>}
+                      </label>
+                    )}
+                  </div>
                   <label className="flex flex-col gap-1.5">
                     <span className={labelText}>Notes</span>
                     <textarea className={cn(input, "py-2")} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Roof out of warranty, leaks in bldg 3" />
@@ -394,6 +479,15 @@ export function LogSheet({
           {!picking && canLog && channel && !when && (
             <section aria-label="What happened">
               <div className={cn(labelText, "mb-2")}>3 · What happened — tap to log</div>
+              {backdated && (
+                <p className="mb-2 flex items-center gap-2 rounded-lg border-2 border-warning bg-warning/10 px-3 py-2 text-sm font-semibold" role="status" data-testid="log-logging-for">
+                  <IconCalendar size={18} className="shrink-0" />
+                  <span className="min-w-0 flex-1">{happenedAt ? `Logging for ${loggingForLabel(happenedAt, tz)}` : "Pick when it happened"}</span>
+                  <button type="button" className="label shrink-0 text-xs text-accent" onClick={() => chooseWhen("now")}>
+                    Use now
+                  </button>
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 {QUICK_OUTCOMES[channel].map((o) => {
                   const pts = previewPoints(channel, o, metRole || null, data.points) + sitewalkPoints(channel, o, photos.length, data.points);

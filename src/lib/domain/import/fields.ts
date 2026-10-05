@@ -1,5 +1,8 @@
 // CSV import: the fields a sheet can map to, and header auto-detection. Pure (shared by browser, server and tests).
 
+/** HOA / COA / POA / condo / community association / homeowners association. */
+export const CONDO_HOA_RE = /\b(hoas?|coas?|poas?|condos?|condominiums?|community associations?|homeowners?'? associations?|owners'? associations?|associations?)\b/;
+
 export type Entity = "account" | "contact" | "property" | "meta";
 
 export const FIELDS = {
@@ -64,6 +67,15 @@ const EXACT: Record<string, FieldKey> = {
   "ownership": "account_name",
   "owner entity": "account_name",
   organization: "account_name",
+  hoa: "account_name",
+  "hoa name": "account_name",
+  "hoa management company": "account_name",
+  coa: "account_name",
+  poa: "account_name",
+  association: "account_name",
+  "association name": "account_name",
+  "community association": "account_name",
+  "condo association": "account_name",
   "company type": "account_type",
   "account type": "account_type",
   type: "account_type",
@@ -198,6 +210,7 @@ const RULES: [RegExp, FieldKey][] = [
   [/\broof\b|\bmembrane\b/, "roof_system"],
   [/\bunits?\b|\bdoors\b/, "unit_count"],
   [/\b(management|mgmt|managed|manager co|pmc)\b/, "account_name"],
+  [/\b(hoa|coa|poa|association)\b/, "account_name"],
   [/\bowner\b/, "account_name"],
   [/\b(company|account|organization|firm)\b.*\bphone\b/, "account_phone"],
   [/\b(company|account|organization|firm)\b/, "account_name"],
@@ -241,6 +254,16 @@ export function guessField(header: string): { field: FieldKey; how: "exact" | "r
   if (EXACT[h]) return { field: EXACT[h], how: "exact" };
   for (const [re, f] of RULES) if (re.test(h)) return { field: f, how: "rule" };
   return null;
+}
+
+/**
+ * Default company type for rows without one: a Company column headed like an association ("HOA", "Community
+ * Association", "COA Management Company") means Condo/HOA management. Null = keep the current default.
+ */
+export function detectDefaultType(headers: string[], mapping: Mapping): "condo_hoa_mgmt" | null {
+  const col = Object.entries(mapping).find(([, f]) => f === "account_name")?.[0];
+  if (col == null) return null;
+  return CONDO_HOA_RE.test(normHeader(headers[Number(col)] ?? "")) ? "condo_hoa_mgmt" : null;
 }
 
 /**

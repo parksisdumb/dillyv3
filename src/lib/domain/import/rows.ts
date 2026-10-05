@@ -2,7 +2,7 @@
 // Pure; the normalizers are TypeScript ports of the SQL ones so the browser dedupes exactly like the database.
 import { ACCOUNT_TYPES, type AccountType } from "@/lib/domain/vocab";
 import { normalizeAddress } from "@/lib/domain/book";
-import type { FieldKey, Mapping } from "@/lib/domain/import/fields";
+import { CONDO_HOA_RE, type FieldKey, type Mapping } from "@/lib/domain/import/fields";
 
 export { normalizeAddress };
 
@@ -67,6 +67,8 @@ export function parseTier(s: string | null | undefined): number | null {
 }
 
 const TYPE_WORDS: [RegExp, AccountType][] = [
+  // Before property mgmt: "HOA management" / "Condo association mgmt" are associations, not PMCs.
+  [CONDO_HOA_RE, "condo_hoa_mgmt"],
   [/\b(pmc|property manage|management|mgmt)\b/, "property_mgmt"],
   [/\breit\b/, "reit"],
   [/\b(gc|general contractor|contractor)\b/, "gc"],

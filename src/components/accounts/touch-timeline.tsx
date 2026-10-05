@@ -15,6 +15,8 @@ export type TimelineTouch = {
   account?: string | null;
   account_id?: string | null;
   voided?: boolean;
+  /** Entered more than an hour after it happened: when it happened and when it was logged (company zone). */
+  logged_later?: { when: string; logged: string } | null;
 };
 
 const toneClass: Record<string, string> = {
@@ -35,11 +37,21 @@ export function TouchTimeline({ touches, showAccount = false }: { touches: Timel
             <div className="flex items-baseline gap-2">
               <span className="font-semibold">{CHANNELS[t.channel as Channel]?.label ?? t.channel}</span>
               <span className={cn("label text-xs", toneClass[o?.tone ?? "neutral"])}>{o?.label ?? t.outcome}</span>
+              {t.logged_later && (
+                <span
+                  className="label shrink-0 rounded-full border border-warning px-2 py-0.5 text-[11px] text-ink"
+                  title={`Logged ${t.logged_later.logged}`}
+                  data-testid="logged-later"
+                >
+                  Logged later
+                </span>
+              )}
               <span className="flex-1" />
               <time className="num shrink-0 text-xs text-muted" dateTime={t.occurred_at} title={new Date(t.occurred_at).toLocaleString()}>
-                {agoLabel(t.occurred_at)}
+                {t.logged_later ? t.logged_later.when : agoLabel(t.occurred_at)}
               </time>
             </div>
+            {t.logged_later && <div className="text-xs text-muted">Logged {t.logged_later.logged}</div>}
             <div className="mt-0.5 text-sm text-muted">
               {t.who ?? "System"}
               {t.contact && (

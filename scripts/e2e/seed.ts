@@ -574,6 +574,8 @@ export async function seed(log: (m: string) => void = console.log): Promise<Seed
       outcome: t.outcome,
       notes: t.notes ?? (rand() < 0.3 ? pick(["Ponding on the west side", "Asked for a COI", "Roof 15+ yrs, leaks in bldg 3", "Wants pricing before budget season", "Talked warranty options"]) : null),
       occurred_at: occurred,
+      // Logged when it happened (not backfilled): no "Logged later" chip, and the engine schedules as it did then.
+      created_at: occurred,
       source: "rep",
     });
     if (error) throw new Error(`touch: ${error.message}`);
