@@ -1,4 +1,5 @@
 import { defineConfig, type PlaywrightTestConfig } from "@playwright/test";
+import webpush from "web-push";
 import { ANON_KEY, SERVICE_KEY } from "./scripts/local/stack/keys.mjs";
 
 /**
@@ -15,6 +16,14 @@ const SUPABASE_URL = process.env.E2E_DIRECT === "1" ? "http://127.0.0.1:54321" :
 const CHROME = process.env.E2E_CHROME ?? "/opt/pw-browsers/chromium-1194/chrome-linux/chrome";
 process.env.PLAYWRIGHT_BROWSERS_PATH ??= "/opt/pw-browsers";
 
+// E2E-only Web Push keys: generated fresh per run (never committed). Stored in process.env so Playwright workers,
+// which re-load this file, see the same pair as the web server.
+if (!process.env.E2E_VAPID_PUBLIC_KEY || !process.env.E2E_VAPID_PRIVATE_KEY) {
+  const k = webpush.generateVAPIDKeys();
+  process.env.E2E_VAPID_PUBLIC_KEY = k.publicKey;
+  process.env.E2E_VAPID_PRIVATE_KEY = k.privateKey;
+}
+
 const appEnv: Record<string, string> = {
   NEXT_PUBLIC_SUPABASE_URL: SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: ANON_KEY,
@@ -28,9 +37,9 @@ const appEnv: Record<string, string> = {
   STORAGE_DRIVER: "local", // the e2e stack has no Storage API: photos/card scans go to disk, served by /api/media/file
   // Address suggestions: deterministic Memphis/Austin fixtures (src/lib/geo/suggest/fake.ts) — never Google or Photon.
   DILLY_ADDRESS_PROVIDER: "fake",
-  // E2E-only Web Push keys (never used outside the local suite): Settings → Notifications renders its real states.
-  VAPID_PUBLIC_KEY: "BBw7Uu3mITizQtb2DXMheM4JFHUkVLCq1FXzQmO7aG7xFJHLwkK9-nIukQKwPLoMoYWh2tg1G0YOozouOGWvRr8",
-  VAPID_PRIVATE_KEY: "3q1A2vIfoor5UtMxSc5c2y1zQKBL0XLFqpNHAorPhrg",
+  // Settings → Notifications renders its real states with these per-run keys.
+  VAPID_PUBLIC_KEY: process.env.E2E_VAPID_PUBLIC_KEY!,
+  VAPID_PRIVATE_KEY: process.env.E2E_VAPID_PRIVATE_KEY!,
   VAPID_SUBJECT: "mailto:team@dillyos.com",
 };
 
