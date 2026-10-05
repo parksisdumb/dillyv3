@@ -14,7 +14,7 @@ Spec lives in the "Go To Market System/App" project (`gtm-agent-system/00-ARCHIT
 | Ranking | `account_ranked` view | Base score × tenant targeting × account preference; excluded accounts stay visible with a reason. |
 | Screens | `src/app/app/**`, `src/components/**` | 3-tap Log sheet, Today queue + brief, Go ("My day": appointments, working list, route; call through the list), appointments (schedule a building or a series; RUNBOOK §13), Accounts, Pipeline, Team, Approvals, Me, Settings. |
 | Agents | `src/agents/**`, `src/inngest/**` | Runtime (runs, steps, cost, grading, gates) + Rep Daily Brief end to end with a deterministic fallback. Crons: brief fan-out 06:00 local, reminders, close-of-day/streaks, manager escalations. |
-| Migration | `migration/` | V2 → new copy-never-move kit: dump, discover, restore to `legacy`, transform, reconcile, freeze, delta. See `migration/README.md`. |
+| Migration | `migration/sql-editor/` | V2 → new copy-never-move kit for the Supabase SQL editor: FDW copy to `legacy`, preflight, transform, reconcile, drop connection, cutover delta, V2 freeze. See `migration/README.md`. |
 | Field kit | `src/lib/offline`, `src/lib/storage`, `src/lib/geo`, `src/agents/card-scan` | Offline log queue (IndexedDB, idempotent replay), roof photos (Supabase Storage), business-card scan (Claude vision), Route for the day + Nearby (Census geocoder), address suggestions while typing (`src/lib/geo/suggest`: Google Places (New) with `GOOGLE_MAPS_API_KEY`, else Photon), browser error reports. RUNBOOK §12. |
 | Import / export | `/app/import`, `/app/export/<kind>` | Managers+. CSV/paste → map (auto-detect, saved per tenant) → preview (dedupe, errors, per-record create/link/skip) → chunked commit → undo within 24 h. Sample: `docs/samples/tsg-import-sample.csv`. Streamed CSV exports follow list filters. |
 | Bulk assign + scorecard | Accounts → Select; `/app/team/scorecard` | Reassign/tier/preference in bulk (tasks follow the account owner; `account_change` audit). 90-day scorecard with 13-week sparklines; targets in `tenant.settings.scorecard_targets`. |
@@ -28,7 +28,7 @@ Spec lives in the "Go To Market System/App" project (`gtm-agent-system/00-ARCHIT
 4. **Vercel**: import the repo, set env vars from `.env.example` (`DILLY_MODEL_*` = current Claude model ids for Opus/Sonnet/Haiku).
 5. **Inngest**: add the Inngest integration in Vercel (sets event/signing keys); it discovers `/api/inngest`.
 6. **Sign in** as `team@dillyos.com` or `parks@foxroofing.co` → you're platform admin and see both tenants. FOX reps sign in with their foxroofing.co emails and land in FOX automatically (invites seeded from the V2 roster).
-7. **Migrate FOX data**: follow `migration/README.md` (dump → discover → confirm the column map → restore → transform → reconcile).
+7. **Migrate FOX data**: follow `migration/README.md` (SQL editor: 01 copy → 05 drop connection → 02 preflight → 03 transform → 04 reconcile).
 
 ## Production operations
 
@@ -55,5 +55,5 @@ npm run db:types                # regenerates src/lib/db/database.types.ts from 
 - Push reminders need VAPID keys in env (see `docs/RUNBOOK.md` §11); without them decisions are only recorded as `insight` rows.
 - Gmail sync is ported (metadata only; reps re-consent once — see RUNBOOK §10). Outlook is "coming soon".
 - Route distances are straight-line (no road routing); Google Maps does the driving directions.
-- Migration column map is a best guess until the V2 schema is confirmed by `migration/02-discover.sh`.
+- Migration column map is built on the real V2 schema; lookup values (touch types/outcomes, stages, scope types, free-text statuses) are confirmed by the first `02-preflight.sql` run on real data.
 - Signal-triggered pushes need an event trigger (cron is 30 min).

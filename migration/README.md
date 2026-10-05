@@ -1,197 +1,184 @@
-# Dilly V2 → Dilly: FOX Roofing data migration runbook
+# Dilly V2 → Dilly: FOX Roofing data migration (Supabase SQL editor kit)
 
-This kit copies FOX Roofing's data from the old **Dilly V2** Supabase project into the new Dilly database.
-It follows `09-DATA-MIGRATION-PLAN.md`: **copy, never move**.
+Copies FOX Roofing's data from the old **Dilly V2** Supabase project into the new Dilly project. It follows
+`09-DATA-MIGRATION-PLAN.md`: **copy, never move**. Everything runs by pasting scripts into the Supabase **SQL Editor**
+(no psql or pg_dump, works from Windows).
 
 > **Standing rule: the V2 Supabase project is paused, never deleted, for 12 months after cutover.**
-> Nobody deletes it "to clean up". The `legacy` schema in the new project is kept for good. It answers every "where did X go" question.
+> Nobody deletes it "to clean up". Schema `legacy` in the new project is kept for good. It answers every
+> "where did X go" question.
 
 ## How it works
 
 ```
-V2 (read-only) ──01-dump──▶ migration/out/<ts>/  (dumps + checksums + snapshot time + exact counts)
-                               │
-                 03-restore-legacy (scratch Postgres in between; atomic swap)
-                               ▼
-NEW: legacy.*  (exact raw copy) ──legacy_views.sql──▶ legacy_v.* (canonical names)
-                               │  value_maps.sql + 05_preflight.sql (unmapped value ⇒ stop, nothing written)
-                               ▼
-NEW: public.* (00 → 90 transforms, one transaction, upsert on (tenant_id, legacy_table, legacy_id))
-                               │
-                     04-reconcile ⇒ PASS / FAIL report (any FAIL blocks cutover)
+V2 project (read-only: only SELECTs, through a postgres_fdw server with updatable=false)
+   │ 01-connect-v2.sql: one transaction = one consistent snapshot, V2 read once
+   ▼
+NEW: legacy.<every V2 table> (all 6 orgs, raw, with primary keys)   + migration.snapshot (time, row counts)
+   │ 02-preflight.sql: pick the FOX org, value maps, canonical views legacy_v.* (FOX rows only), preflight (RAISES)
+   ▼
+NEW: public.*  ← 03-transform.sql (one transaction; upsert on (tenant_id, legacy_table, legacy_id); re-runnable)
+   │ 04-reconcile.sql: one table, first row = VERDICT (any FAIL blocks cutover)
+   ▼
+05-drop-fdw.sql removes the V2 connection + password.  Cutover: V2-freeze.sql (in V2) → 06-delta.sql → 02 → 03 → 04
 ```
 
-| File | What it does | Writes to |
-|---|---|---|
-| `01-dump.sh` | pg_dump of V2: schema-only SQL, custom-format public (schema+data and data-only), auth schema, storage listing, exact row counts before and after, `snapshot.txt`, `MANIFEST.sha256` | local `migration/out/<ts>/` only |
-| `02-discover.sh` + `discover.sql` | `legacy-schema.md`: tables, exact counts, columns and types, enums, checks, FKs, triggers and policies, the **value inventory** of every enum-like column, and an **assumption check** of every column the mapping expects | local file only |
-| `03-restore-legacy.sh` | Restores the dump into schema `legacy` in NEW (needs `--yes`) | scratch DB (created and dropped), NEW `legacy` |
-| `03b-transform.sh` | Runs `map/*.sql` in one transaction. Re-runnable. | NEW `migration`, `legacy_v`, `public` |
-| `map/legacy_views.sql` | **The only file that knows real V2 table and column names.** Edit it when discovery disagrees. | |
-| `map/value_maps.sql` | `migration` schema, config, and every V2 value → new code (touch types, outcomes, stages, P1–P4, onboarding, account types, roles, statuses) | |
-| `map/05_preflight.sql` | Raises with the full list of unmapped values, invalid targets, duplicate ids, and unclassified tables | |
-| `map/00…90_*.sql` | Transforms in dependency order: users → accounts → contacts → properties → property contacts → opportunities → touches → tasks → preferences and onboarding → post (`app.reconcile_tasks`, duplicate suggestions) | |
-| `map/95_reattribute.sql` | Optional (`--reattribute`). Fills `touch.user_id` for reps who signed in after the load. | |
-| `reconcile.sql` + `04-reconcile.sh` | Pass/fail report (`reconcile-<ts>.md`). Exits 1 on any FAIL. | report file |
-| `05-freeze-v2.sql` / `05-unfreeze-v2.sql` | Cutover: revokes and restores app-role writes on V2. Saves the exact grants first. | V2 grants only |
-| `06-delta.sh` | Copies V2 rows changed after the last snapshot, then re-runs transform and reconcile (needs `--yes`) | NEW `legacy`, `public` |
-| `scratch-stubs.sql`, `scratch-normalize.sql` | Used by step 03 inside the scratch database only | scratch |
+| Script | Run in | What it does | Writes to |
+|---|---|---|---|
+| `sql-editor/01-connect-v2.sql` | NEW | Connects to V2 (you fill in 3 values), copies every V2 table into `legacy`, records snapshot time + row counts. Refuses to run twice once data was transformed. | `legacy`, `migration` |
+| `sql-editor/02-preflight.sql` | NEW | Picks the FOX org, (re)builds value maps and views, runs the preflight. Raises with the full list of problems. | `migration`, `legacy_v` only |
+| `sql-editor/03-transform.sql` | NEW | All transforms, one transaction, idempotent. Runs the preflight first. Ends with `app.reconcile_tasks`. | `public`, `migration` |
+| `sql-editor/04-reconcile.sql` | NEW | PASS/FAIL/WARN/INFO report. Row 1 is the verdict. | nothing (defines `migration.reconcile()`) |
+| `sql-editor/05-drop-fdw.sql` | NEW | Drops the foreign server, user mapping (password) and `legacy_fdw`; clears `pg_stat_statements`. | — |
+| `sql-editor/06-delta.sql` | NEW | Cutover: re-connects, brings every V2 change since the snapshot into `legacy`, removes the connection again. | `legacy`, `migration` |
+| `sql-editor/V2-freeze.sql` | **V2** | Makes V2 read-only for the app (saves the grants first). | V2 grants (+ `dilly_cutover.saved_grant`) |
+| `sql-editor/V2-unfreeze.sql` | **V2** | Rollback: restores exactly the saved grants. | V2 grants |
+| `discover-sql-editor.sql` | **V2** | Schema discovery (already run: `tests/migration/fixtures/v2-schema-snippet.csv`). | — |
 
-### Guarantees
+## Runbook (Windows, browser only)
 
-- **V2 is never written** except by the deliberate freeze at cutover. Every psql session to V2 runs `set session characteristics as transaction read only`. pg_dump is read-only.
-- Scripts refuse to run if `V2_DB_URL` points at the NEW database. They check the URL, the server/database identity, and whether `app.reconcile_tasks` exists.
-- Every migrated row has `source='dillyv2'`, `legacy_table`, and `legacy_id`. Reconcile checks that no `dillyv2` row is missing a `legacy_id`.
-- **Nothing is dropped or merged:**
-  - test rows → `is_test=true` plus `migration.flagged_row`
-  - duplicates → `migration.duplicate_suggestion`; `duplicate_of` is left untouched
-  - orphans (broken V2 FKs) → migrated unlinked and flagged
-  - unknown reps → `migration.unmapped_actor`
-  - fields with no new column (opportunity notes, legacy priority/score/points, Gmail thread ids, provenance) → `migration.legacy_value`
-- **Enums never become null.** A value with no row in `value_maps.sql` stops the run before anything is written.
-- **Migrated touches** (`source='dillyv2'`) only stamp freshness and close tasks. They create no new tasks and award no points. Points and ICP score are recomputed by the app. Legacy totals and P1–P4 are kept for comparison.
-- **Follow-ups** keep their original `created_at` and due date. `app.reconcile_tasks(fox)` then closes every one that already has a later touch on the same contact or account.
+**How to paste a script.** On GitHub open the file (e.g. `migration/sql-editor/02-preflight.sql`) → click
+**Copy raw file** (the two-squares icon above the code). In Supabase: left sidebar **SQL Editor** → **+ New query** →
+paste with Ctrl+V → **Run** (or Ctrl+Enter). Keep the role selector next to Run on **postgres**. If Supabase asks
+"this query has destructive operations", click **Run this query** (the scripts only drop their own bookkeeping
+objects). The editor shows the **last result table** of a script; that table is the script's report. If a script
+fails, nothing it did is kept (each runs as one transaction) and the red error text says exactly what to fix.
 
-## Prerequisites
+### Step 1: Copy V2 into the new project (10 min)
 
-- `psql`, `pg_dump`, `pg_restore` version 15 or newer (at least the V2 server's major version), plus `sha256sum`.
-- A **scratch Postgres** you can throw away, e.g. `docker run -d -p 5433:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres:16`. It must not be the V2 server.
-- **Direct** connection strings, not the transaction pooler: `postgresql://postgres:<pw>@db.<ref>.supabase.co:5432/postgres`.
+1. Get the V2 connection values. Supabase dashboard → pick the **V2** project → **Connect** (top bar) →
+   **Session pooler** → note **host** (`aws-0-<region>.pooler.supabase.com`), **port** `5432`, **user**
+   (`postgres.<v2-project-ref>`). Password = the V2 database password. If nobody has it: V2 project →
+   **Project Settings → Database → Reset database password** (the V2 web app signs in with API keys, not this
+   password; check no script or outside tool uses it first).
+2. Switch to the **NEW** project → **SQL Editor** → **+ New query** → paste `01-connect-v2.sql`.
+3. In the `>>> FILL IN` block replace `<V2_POOLER_HOST>`, `<V2_POOLER_USER>`, `<V2_DB_PASSWORD>` (keep the quotes).
+   **Type the password only there. Never paste it into a chat.** → **Run**.
+4. Check the result: 51 rows (one per V2 table), `v2_rows` = `copied_rows` on every row.
+5. Delete the password from the editor tab (and don't save the snippet), then run **`05-drop-fdw.sql`**:
+   result says `PASS: no V2 server or credentials stored`.
 
-```bash
-export V2_DB_URL='postgresql://postgres:***@db.<v2-ref>.supabase.co:5432/postgres'
-export NEW_DB_URL='postgresql://postgres:***@db.<new-ref>.supabase.co:5432/postgres'
-export SCRATCH_DB_URL='postgresql://postgres@localhost:5433/postgres'
-export TENANT_SLUG=fox                 # new tenant (seeded by supabase/migrations/*_initial_tenants.sql)
-export LEGACY_ORG_ID=                  # V2 FOX organization id if V2 holds other orgs; empty = all rows
-```
+### Step 2: Preflight (2 min)
 
-`migration/out/` holds customer data and password hashes. It is git-ignored. Never commit it.
+Run **`02-preflight.sql`**. Expected: a table starting with `preflight | PASS`, the FOX org, and the counts that
+will load (accounts, contacts, properties, opportunities, touches, follow-ups).
 
-## Runbook
+If it errors:
+- **"N V2 orgs match …fox…"**: the message lists every V2 org with its id. Put FOX's id in the line
+  `('fox_org_id_override', null, …)` at the top of the script (`null` → `'<the id>'`) and run again.
+- **"migration preflight failed … unmapped … value …"**: each line names the value, the V2 column and how many rows
+  use it. Send Claude the error text (it holds no secrets). Claude adds the rows to the value maps in
+  `02-preflight.sql`; you re-paste it and run again. Nothing has been written to the app.
 
-### Step 1: Dump V2 (now, then weekly until cutover)
+### Step 3: Transform (1 min)
 
-```bash
-migration/01-dump.sh
-```
+Run **`03-transform.sql`**. Result: rows per entity (accounts, contacts, properties, ownership rows, opportunities,
+touches, follow-ups, follow-ups still open, people signed in / invited, rows flagged). Running it again changes
+nothing (it is idempotent).
 
-Check:
-- The last line prints the dump directory.
-- `row-counts.tsv` totals look right. The Sep 13 baseline was 116 accounts, 510 contacts, 472 properties, 18 opportunities and 6 users.
-- No "changed while the dump ran" warning. If there is one, re-run at a quiet hour.
+### Step 4: Reconcile (1 min) — blocks cutover on any FAIL
 
-Then:
-- Download the storage buckets listed in `storage-objects.tsv` (see `STORAGE-NOTE.md`).
-- Copy the whole directory to Google Drive and a private bucket. One copy is zero copies.
-- Turn on PITR in the V2 dashboard.
+Run **`04-reconcile.sql`**. **Row 1 = VERDICT.** `PASS` = OK to cut over; `FAIL` = do not, the FAIL rows say what
+differs. Keep a copy: **Export → Download CSV** above the results.
 
-### Step 2: Discovery (do this first)
+Checks: tables classified; the raw copy intact; **no other V2 org migrated**; per entity counts, every legacy id
+present, no extras; users; property-contact links; each building's current manager/owner; opportunity value total
+and per stage; touches per rep per ISO week; contacts and properties per account; notes length (no truncation);
+touch fields (channel/outcome/direction/time/rep); task created/due dates; 10 timestamps side by side in UTC and
+Central; account type / onboarding / preference distributions; no open follow-up with a later touch; migration
+created no tasks or points; V2 points kept for comparison; people not signed in (WARN); flags and duplicate
+suggestions (INFO).
 
-```bash
-migration/02-discover.sh          # -> migration/out/<ts>/legacy-schema.md
-```
+### Step 5: People
 
-Check:
-- **Section 7** must show no `**MISSING**` columns. For each one that does, edit `map/legacy_views.sql`. Change only the right-hand expressions; keep the canonical aliases. Tables V2 has that the mapping does not know go into `migration.table_disposition` (bottom of `legacy_views.sql`) as `migrated` or `legacy_only`.
-- **Section 5** lists every enum-like value. Each must have a row in `map/value_maps.sql`. Spelling, dashes and apostrophes must match; case and spacing do not matter.
-- **Section 2** flags `timestamp` columns with **NO TZ**. Wrap those in `legacy_views.sql` as `(col at time zone 'UTC')`.
+Reps who have not signed in to Dilly get an invite and keep all their history (user columns stay empty, the V2
+person is kept in `migration.unmapped_actor`). After they sign in: run **`02` → `03` → `04`** again. Their touches,
+follow-ups and assignments are attributed to them; `unmapped_actors` goes to PASS. No points are awarded for history.
+V2 password hashes are not copied: reps sign in with a magic link or reset their password.
 
-### Step 3: Load the raw copy into NEW
+### Step 6: Human spot-check
 
-```bash
-migration/03-restore-legacy.sh           # dry run: prints the plan, exits 2
-migration/03-restore-legacy.sh --yes     # replaces schema legacy in NEW (atomic swap)
-migration/02-discover.sh --target new    # optional: describe what landed
-```
+Each rep opens five of their accounts in Dilly: contacts, timeline and open follow-ups must match V2. Tyler signs off
+on the pipeline ($ total = `opportunity_value_total`). Review:
+`select * from migration.flagged_row order by flag;` and `select * from migration.duplicate_suggestion;`.
 
-Check: "6/6 done" with the same row total as `row-counts.tsv`. If a table fails to create in scratch, add the missing Supabase stub to `scratch-stubs.sql` and re-run. Details are in `restore-*/restore-scratch.log`.
+### Step 7: Cutover (Friday 17:00 freeze → Monday 06:00 switch)
 
-### Step 4: Transform
+1. **V2 project** → SQL Editor → run **`V2-freeze.sql`**. Result: `tables_still_writable_by_reps = 0`. Reps can still
+   read V2. (It also stops V2's own Gmail sync and agents from writing; set `freeze_service_role := false` to keep them.)
+2. **NEW project** → run **`06-delta.sql`** with the same 3 values as step 1. Result: per table `changed`, `new_rows`,
+   `gone_from_v2_kept`. It removes the V2 connection itself at the end.
+3. Run **`02` → `03` → `04`**. Row 1 must be `PASS`.
+4. Switch reps to Dilly.
 
-```bash
-migration/03b-transform.sh
-```
+Rollback: V2 project → **`V2-unfreeze.sql`** (restores exactly the saved grants).
 
-Check:
-- If preflight fails, nothing was written. Fix `value_maps.sql` or `legacy_views.sql` and re-run.
-- The result line lists counts per entity.
-- Running it again must change nothing (it is idempotent).
+Delta details: changed V2 rows are archived to `legacy._superseded` before being replaced; rows deleted in V2 are
+listed in `legacy._delta_missing` and **never removed** (they stay migrated); new V2 columns are added to the legacy
+table. If `touch_fields_match` FAILs, a rep edited a touch in V2 after the first load: the Dilly ledger is append-only,
+so void and re-log that touch in Dilly.
 
-### Step 5: Reconcile (blocks cutover on any FAIL)
+### Step 8: After cutover
 
-```bash
-migration/04-reconcile.sh                # exit 0 = PASS, 1 = FAIL; report in reconcile-<ts>.md
-```
-
-The report covers:
-- per-entity counts, and that every legacy id is present
-- opportunity value total and per-stage totals
-- touches per rep per ISO week
-- contacts and properties per account
-- notes length, so truncation shows up
-- touch field fidelity
-- 10 touches with timestamps side by side, in UTC and tenant time
-- P1–P4, onboarding and preference distributions
-- open tasks that already have a later touch (must be 0)
-- unmapped actors (WARN)
-- flags and duplicate suggestions (INFO)
-
-### Step 6: People
-
-Reps who have not signed in get a `public.invite` and keep their history: user columns stay null and the actor is kept in `migration.unmapped_actor`. After they sign in:
-
-```bash
-migration/03b-transform.sh --reattribute && migration/04-reconcile.sh
-```
-
-`unmapped_actors` should go to 0. Password hashes are in `v2-auth.dump` if the team decides to import them. The fallback is a password-reset link at cutover.
-
-### Step 7: Human spot-check
-
-Each rep opens five of their own accounts in the new app: contacts, timeline and open follow-ups must match V2. Tyler signs off on the pipeline list ($ total = reconcile `opportunity_value_total`). Also review:
-- `migration.flagged_row`: test rows, orphans, duplicate Gmail ids
-- `migration.duplicate_suggestion`
-
-### Step 8: Rehearsal
-
-Run steps 1 → 5 end to end against a fresh clone of the new project and time it.
-
-### Step 9: Cutover (Friday 17:00 freeze → Monday 06:00 switch)
-
-```bash
-psql "$V2_DB_URL" -v ON_ERROR_STOP=1 -v grants_file=migration/out/v2-grants-before-freeze.sql \
-     -v freeze_service_role=1 -f migration/05-freeze-v2.sql      # V2 read-only (reads still work)
-migration/06-delta.sh                                            # dry run: rows changed since snapshot
-migration/06-delta.sh --yes                                      # copy, transform, reconcile; exit 0 required
-```
-
-Rollback, if needed: `psql "$V2_DB_URL" -v grants_file=migration/out/v2-grants-before-freeze.sql -f migration/05-unfreeze-v2.sql`.
-
-Delta details:
-- Rows V2 changed are archived in `legacy._superseded` before being replaced.
-- Rows deleted in V2 are listed in `legacy._delta_missing` and never removed.
-- If reconcile reports `touch_fields_match` FAIL, a rep edited a touch in V2 after the load. The ledger is append-only: void and re-log that touch in the new app.
-
-### Step 10: After cutover
-
+- Reset the V2 database password (Project Settings → Database). Any copy of it is then useless.
 - Weeks 0–2: V2 stays read-only and reachable. Fix any discrepancy from `legacy.*`.
-- Day 90: pause the V2 project (never delete it). Archive a final `01-dump.sh` alongside the others.
-- Month 12: decide on deletion, in writing.
+- Day 90: pause the V2 project (never delete it). Month 12: decide on deletion, in writing.
 
-## Assumptions to confirm (V2 repo or discovery output)
+## What maps where
 
-The V2 schema was not available when this kit was written. Everything below is a best guess from the Sep 13, 2026 app review, and lives in `map/legacy_views.sql` (names) or `map/value_maps.sql` (values). Section 7 of `legacy-schema.md` checks the column names automatically.
+| V2 (real schema) | Dilly | Notes |
+|---|---|---|
+| `orgs` (6) | tenant `fox` | Only the org whose name contains "fox" (or the override). Other orgs stay in `legacy` only; reconcile checks none leaked. |
+| `org_users` (+ `memberships`/`roles`, `profiles.full_name`) | `migration.user_map` → `membership` if the email already signed in to Dilly, else `invite` | Matched by email, case-insensitive. Role: rep/manager/admin (V2 CHECK). Users without email are kept and reported. |
+| `accounts` | `account` | `account_type` mapped; `onboarding_status` (V2 CHECK keys) set on insert; `status` → `account_preference`; owner = first `account_assignments` row, else the rep with most `property_assignments` on its buildings, else the creating rep. V2 has **no P1–P4 column**: `icp_tier` stays at Dilly's default and the ICP score is recomputed. |
+| `account_assignments` (2nd+) | `account_assignment` (support) | |
+| `contacts` | `contact` (+ `contact_employment` via Dilly's trigger, source `dillyv2`) | first/last kept; when both empty `full_name` is split at the last space (V2 name kept if different). `decision_role` → `persona_role`. |
+| `properties` | `property` | `address_line1, address_line2` joined; `building_type` → `asset_class`; `roof_type` → `roof_system`; `sq_footage` → `roof_area_sf` (V2 value also kept); `roof_age_years` → `roof_install_year`. `account_id` is **not** written directly (next row). |
+| `property_accounts` + `properties.primary_account_id` | `property_party` rows, source `dillyv2` | `owner` → owner, `property_manager` → manager; ended/inactive links become history rows (`ended_on`); the property's primary account becomes the manager (owner if a manager is already set). Dilly's trigger then sets `property.account_id` (manager, else owner). gc/consultant/vendor/other links → `migration.legacy_value`. A building whose management was changed **in Dilly** is owned by Dilly: re-runs and the delta leave it alone. |
+| `property_contacts` (PK property+contact+role) | `property_contact` (one row per property+contact, roles joined) | inactive links are flagged, not linked. |
+| `property_assignments` | `property_pursuit` (active) | once per V2 row; ending it in Dilly is respected. |
+| `opportunities` (+ `scope_types`, `opportunity_stages`, `lost_reason_types`, `opportunity_assignments`) | `opportunity` | stage = status `won`/`lost` if set, else the stage lookup; value = final, else bid, else estimated; lost reason = reason name + notes; owner = primary assignment. All three values, V2 stage, created_reason kept in `legacy_value`. |
+| `touchpoints` (+ `touchpoint_types`, `touchpoint_outcomes`) | `touch` (source `dillyv2`) | `happened_at` → `occurred_at`; rep, direction, notes, property, opportunity kept; engagement phase in `legacy_value`. Inserted in time order. Triggers only stamp freshness and close tasks: no new tasks, no points. |
+| `synced_emails` | see decision below | |
+| `next_actions` | `task` (kind `follow_up`) | `due_at` → due date in Central time; status open/done/dropped; completed/created-from touchpoints linked; notes → reason. `app.reconcile_tasks` then closes every one that already has a later touch. |
+| `score_events` | not migrated as points | per-person V2 total kept as `legacy_points`. |
+| everything else (`touchpoint_revisions`, `streaks`, `score_rules`, `territories*`, `prospects`, `import_batches`, `suggested_outreach`, `icp_*`, `intel_*`, `agent_*`, `benchmark_snapshots`, `kpi_*`, `milestone*`, `merge_events`, `email_connections`, `org_invites`, `demo_requests`) | legacy only | listed with a reason in `migration.table_disposition`. |
 
-| Area | Assumed |
-|---|---|
-| Table names | `profiles` (could be `users`), `follow_ups` (could be `tasks`), `property_contacts` join table (could be `contacts.property_id`), `organizations`; every business table has `org_id` |
-| accounts | `type`, `address`, `priority` as `P1`–`P4`, `score`, `onboarding_status` (ladder labels), `status` codes `active` / `do_not_pursue` / `existing_client` / `competitor` / `deprioritized`, `assigned_to` (owner), `created_by`, `notes` |
-| contacts | `account_id`, `first_name`, `last_name`, `title`, `email`, `phone`, `mobile`, `notes` |
-| properties | direct `account_id`, `property_type`, `roof_type`, `sqft`, `buildings` |
-| opportunities | `contact_id`, `type` (service type: Repair / Re-Roof / Maintenance / Inspection / Coating), `stage`, `value`, `assigned_to`, `stage_updated_at`, `notes` |
-| touchpoints | `user_id` (rep), `type`, `outcome`, `direction`, `source` (`manual` / `gmail`), `gmail_message_id`, `gmail_thread_id`, `points`, `opportunity_id`; **`created_at` is the touch time** (no separate occurred_at) |
-| follow_ups | `assigned_to`, `due_date`, `status` (`pending` / `completed` / `dismissed`), `title`, `notes`, `snooze_count`, `touchpoint_id`, `completed_at` |
-| profiles | `email`, `full_name`, `role` (rep / manager / admin), `points` = leaderboard total |
-| Outcome labels marked ASSUMED | "No Answer — no voicemail", "Not Interested", "Call Back Later", "Bid Requested", "Auto-Reply" / "Auto Reply" (Gmail out-of-office capture) |
-| Timestamps | `timestamptz` (stored UTC) |
+## Decisions
+
+- **Synced emails.** V2 links a synced Gmail message to the touchpoint it created (`synced_emails.touchpoint_id`).
+  Linked messages add **no** touch: their Gmail id goes on that touch as `external_id = 'gmail:<id>'`, which is also
+  what Dilly's own Gmail sync checks, so it never logs them again. Messages matched to a contact but never logged
+  (`touchpoint_id` null) become touches (email, `sent` outbound / `replied` inbound, `legacy_table = 'synced_emails'`),
+  unless an email touchpoint on the same contact within 10 minutes already represents them. Messages with no matched
+  contact stay in legacy. One Gmail message on two V2 touches: the first keeps the id, the second is flagged.
+- **Touchpoint revisions** stay in legacy only. The touchpoint row already holds the edited (current) values; the
+  revision history is there for "who changed what".
+- **Soft-deleted V2 rows** (`deleted_at` set) are not shown in Dilly; they stay in legacy and are flagged
+  `soft_deleted_in_v2`. Rows pointing at them migrate with that link empty (flagged `orphan`).
+- **Follow-up created by a touch.** V2 writes the follow-up in the same transaction as its touch, so both carry the
+  same timestamp. The task is stamped 1 ms after its own touch so that touch does not also close it
+  (original kept as `legacy_value v2_created_at`; reconcile checks the rule).
+- **Lookup values** (types, outcomes, stages, scope types) map by the lookup row's **name**, then its **key**;
+  matching ignores case, spaces, underscores, dashes, slashes and curly apostrophes. Unknown values never become
+  null: the preflight stops and lists them.
+- **Nothing is dropped or merged:** test rows → `is_test` + `migration.flagged_row`; duplicates →
+  `migration.duplicate_suggestion`; values with no Dilly column → `migration.legacy_value`.
+
+## Values the preflight will confirm on the real data
+
+The CSV gives V2's columns and CHECK constraints but not the lookup **rows**. Confirmed by CHECK constraints:
+onboarding status keys, org roles, touch/email direction, property relationship types. Mapped from the V2 UI labels
+plus likely keys, **to be confirmed by the first preflight run**: touchpoint type names (9 rows), outcome names
+(19 rows), stage names (13 rows: 8 seen in the UI, 5 unknown, maybe other orgs'), scope type names (9 rows),
+`accounts.account_type` and `accounts.status` free-text values, `contacts.decision_role`, `opportunities.status`,
+`next_actions.status`. Anything unexpected stops the preflight with its name, key and row count.
+
+## Tests
+
+`tests/migration/migration.test.ts` builds a V2 database with exactly the real schema (from
+`tests/migration/fixtures/v2-schema-snippet.csv`: 51 tables, every column, type, default, PK/FK/UNIQUE/CHECK), fills
+it with FOX plus two other orgs (`fixtures/v2-data.sql`), and runs every script the way the SQL editor does (whole file,
+one query) through a real postgres_fdw connection: 01 → 02 → 03 twice (identical fingerprint) → 04 PASS, other orgs
+absent, follow-up closing, Gmail handling, ownership history, people, flags, unmapped value raising, org ambiguity,
+05, re-attribution, 06 delta with a Dilly-side transfer, and V2 freeze/unfreeze.

@@ -30,8 +30,13 @@ Sign in as `team@dillyos.com` → TSG. Switch to FOX. Log a touch, see the follo
 ## 5. Gmail auto-logging (15 min, Google Cloud console)
 Reuse the V2 OAuth client if it's already set up: enable Gmail API; add redirect `https://<app>/api/mail/google/callback`; if the app is in Testing, add each rep as a test user (tokens expire every 7 days in Testing — publish/verify when you can); in the **FOX and TSG Google Workspace admin consoles** mark the client **Trusted** (Security → API controls → App access control) — this is what blocked V2 on foxroofing.co. Reps then tap **Connect Gmail** in Settings.
 
-## 6. FOX data from Dilly V2 (needs you for 10 min, then me)
-`migration/README.md`. You run step 1–2 (`01-dump.sh`, `02-discover.sh`) with the V2 database URL (Supabase → V2 project → Settings → Database → connection string) and send me `legacy-schema.md` (or attach the dillyv2 repo). I confirm the column map, then: restore → transform → reconcile (must show zero FAIL) → freeze V2 → delta → reps switch. V2 is paused, never deleted.
+## 6. FOX data from Dilly V2 (30 min, all in the Supabase SQL Editor — no installs)
+Full click path: `migration/README.md`. Scripts: `migration/sql-editor/`. Each one: GitHub → open the file → **Copy raw file** → Supabase → **SQL Editor** → **+ New query** → paste → **Run**.
+1. **NEW project** → `01-connect-v2.sql`: first fill in 3 values: host and user (`postgres.<v2-ref>`) from **V2 project → Connect → Session pooler**, and the V2 database password. Type the password only in the editor, never in a chat. Result: 51 tables, `v2_rows` = `copied_rows`. Clear the password from the tab, then run `05-drop-fdw.sql` (removes the stored connection).
+2. `02-preflight.sql` → first row `PASS`. If it lists unmapped values (or several "fox" orgs), send me the error text; I update the maps and you re-run.
+3. `03-transform.sql` → counts per entity.
+4. `04-reconcile.sql` → **row 1 must say PASS**. Export the CSV and keep it.
+5. Cutover: **V2 project** → `V2-freeze.sql`; **NEW project** → `06-delta.sql` (same 3 values), then `02` → `03` → `04` (PASS) → reps switch. Rollback: `V2-unfreeze.sql` in V2. V2 is paused after 90 days, never deleted.
 
 **If V2 data isn't ready by Monday 8 AM:** launch TSG fresh Monday (nothing to migrate), keep FOX on V2 one more day, cut FOX over Monday night after reconcile passes. No rep loses data either way.
 
