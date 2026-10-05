@@ -67,8 +67,11 @@ describe("geocode columns", () => {
         [fox],
       );
       await c.query("savepoint s");
-      await expect(c.query("update public.property set geocode_source = 'google' where id = $1", [p.id])).rejects.toThrow(/property_geocode_source_chk/);
+      await expect(c.query("update public.property set geocode_source = 'bing' where id = $1", [p.id])).rejects.toThrow(/property_geocode_source_chk/);
       await c.query("rollback to savepoint s");
+      // Autocomplete picks (20261004600000_address_suggest.sql).
+      for (const src of ["google", "photon"]) await c.query("update public.property set geocode_source = $2 where id = $1", [p.id, src]);
+      await c.query("update public.property set geocode_source = 'census' where id = $1", [p.id]);
 
       await c.query("update public.property set name = 'Geo 2', roof_system = 'TPO' where id = $1", [p.id]);
       expect(await one(c, "select lat::float, geocode_source from public.property where id = $1", [p.id])).toEqual({ lat: 30.23, geocode_source: "census" });

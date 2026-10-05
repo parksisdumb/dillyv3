@@ -53,6 +53,8 @@ Empty values are treated as unset (they never crash boot).
 | `STORAGE_DRIVER` | Photos + card scans (§12). `supabase` (default) or `local` (dev/e2e only — never on Vercel) | Defaults to Supabase Storage, bucket `media` |
 | `STORAGE_LOCAL_DIR` | only with `STORAGE_DRIVER=local`, default `<cwd>/.data/media` | — |
 | `DILLY_GEOCODER` | optional; `off` disables Census geocoding (Route / Nearby) | Geocoding on (US Census, free, no key) |
+| `GOOGLE_MAPS_API_KEY` | optional — address suggestions via Google Places API (New) (§12) | Suggestions come from Photon (free, OpenStreetMap) |
+| `DILLY_ADDRESS_PROVIDER` | optional: `google`, `photon`, `off` (`fake` is for the e2e suite only) | `google` when the key is set, else `photon` |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Push reminders to phones (§11) — `npx tsx scripts/gen-vapid.ts` | Reminders are still decided and recorded (`insight` rows) but not sent; Settings says phone reminders aren't switched on |
 | `VAPID_SUBJECT` | optional, default `mailto:team@dillyos.com` | — |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Gmail sync (§10) | Email section hidden for reps; admins see "Email sync isn't configured yet" |
@@ -311,12 +313,33 @@ enabled — all decided in `rank.ts`) as Web Push.
 ### Route for the day / Nearby
 - Property pins come from the free **US Census geocoder**, server-side only (the browser never calls it; CSP unchanged).
   Cached on `property.lat/lng` with `geocoded_at`, `geocode_source` (`census`, `census_nomatch`, `census_error`,
-  `manual`, `import`). An address edit clears the pin (trigger) and re-geocodes after the save. Inngest
+  `manual`, `import`, `google` / `photon` = picked from address suggestions). An address edit clears the pin (trigger) and re-geocodes after the save. Inngest
   `geocode-properties` (hourly + `dilly/geocode.requested`) works through buildings without a pin, ≤ 5 req/s, 25 per
   step, resumable; errors retry after 6 h. Go also geocodes today's unpinned stops after the page renders.
 - Backfill after an import: Inngest → send `dilly/geocode.requested` with `{}`.
 - Go → **Route**: nearest-neighbour from the rep's location (or the first stop), straight-line miles between stops,
   "Open route in Google Maps" (multi-stop URL, no API key; > 10 stops split into legs). Properties → Sort: **Nearby**.
+
+### Address suggestions while typing
+- Property forms (new / edit / account → new property) and the account form suggest US addresses after 3 characters
+  (250 ms debounce). Picking one fills Address, City, State and Zip; on property forms it also saves the pin
+  (`lat/lng`, `geocoded_at`, `geocode_source` = `google` or `photon`), so the building is on the map at once instead of
+  waiting for the Census batch. The last option is always **Use what I typed** (no pin; Census takes over after the save).
+  Typing over a picked address drops its pin. Offline, or if the provider is down, the field is a plain text input.
+  The duplicate-address check runs on save as before.
+- The browser only calls `GET /api/address/suggest?q=…&near=lat,lng` (and `/api/address/details` for a Google pick).
+  Signed-in tenant members only; **60 lookups / user / minute** (429 + `Retry-After` past that; per server instance).
+  Results are biased to the rep's location when they've already allowed location for Go (the form never prompts), else
+  the company's primary market center (`public.market.center_lat/lng`). CSP is unchanged.
+- **Provider.** With `GOOGLE_MAPS_API_KEY`: Google **Places API (New)** Autocomplete + Place Details (US only). Setup:
+  Google Cloud console → enable **Places API (New)** → create an API key → restrict it to **Places API (New)** (API
+  restriction; it's used server-side, so no referrer restriction) → set it in Vercel. Each typing session sends one
+  session token on every Autocomplete request and on the single Details call for the pick, so Google bills it as one
+  session. **Confirm current per-session cost on Google's Maps Platform pricing page** before turning it on, and set a
+  budget alert/quota in the console. Without a key: **Photon** (`photon.komoot.io`, OpenStreetMap, free, fair-use; we
+  send a descriptive User-Agent and cache answers in memory for 10 min). Photon results get a pin only when they have a
+  house number. `DILLY_ADDRESS_PROVIDER=off` hides suggestions entirely.
+- Logs: `address:suggest:failed`, `address:details:failed`, `address:rate-limited`.
 
 ### Browser error reports
 - `window.onerror`, unhandled rejections and every `error.tsx` boundary → batched `navigator.sendBeacon` to

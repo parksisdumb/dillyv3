@@ -6,6 +6,7 @@ import { ActionForm } from "@/components/ui/action-form";
 import { SelectField, TextArea, TextField, opts } from "@/components/ui/fields";
 import type { Member } from "@/lib/server/members";
 import { SearchPicker } from "@/components/ui/search-picker";
+import { AddressAutocomplete } from "@/components/ui/address-autocomplete";
 import { quickCreateAccount, searchAccountOptions, type PickOption } from "@/lib/actions/book";
 
 type AccountValues = {
@@ -42,12 +43,7 @@ export function AccountForm({ a = {}, members, me }: { a?: AccountValues; member
         <TextField label="Main phone" name="phone" type="tel" inputMode="tel" defaultValue={a.phone} />
         <TextField label="Website" name="website" defaultValue={a.website} inputMode="url" />
       </div>
-      <TextField label="Office address" name="address1" defaultValue={a.address1} autoComplete="street-address" />
-      <div className="grid grid-cols-[1fr_5rem_6rem] gap-3">
-        <TextField label="City" name="city" defaultValue={a.city} />
-        <TextField label="State" name="state" defaultValue={a.state} />
-        <TextField label="Zip" name="zip" defaultValue={a.zip} inputMode="numeric" />
-      </div>
+      <AddressAutocomplete label="Office address" defaults={{ address1: a.address1, city: a.city, state: a.state, zip: a.zip }} />
       <TextArea label="Notes" name="notes" defaultValue={a.notes} />
       {!a.id && (
         <label className="flex min-h-12 items-center gap-2 text-sm">
@@ -97,12 +93,7 @@ export function PropertyForm({ p, account }: { p: PropertyValues; account?: Pick
         p.account_id && <input type="hidden" name="account_id" value={p.account_id} />
       )}
       <TextField label="Property name" name="name" defaultValue={p.name} placeholder="Riverside Apartments" />
-      <TextField label="Address" name="address1" defaultValue={p.address1} autoComplete="street-address" />
-      <div className="grid grid-cols-[1fr_5rem_6rem] gap-3">
-        <TextField label="City" name="city" defaultValue={p.city} />
-        <TextField label="State" name="state" defaultValue={p.state} />
-        <TextField label="Zip" name="zip" defaultValue={p.zip} inputMode="numeric" />
-      </div>
+      <AddressAutocomplete label="Address" defaults={{ address1: p.address1, city: p.city, state: p.state, zip: p.zip }} withCoords />
       <div className="grid grid-cols-2 gap-3">
         <SelectField label="Asset class" name="asset_class" options={ASSET_CLASSES.map((x) => ({ value: x.toLowerCase(), label: x }))} defaultValue={p.asset_class} placeholder="—" />
         <SelectField label="Roof system" name="roof_system" options={ROOF_SYSTEMS.map((x) => ({ value: x, label: x }))} defaultValue={p.roof_system} placeholder="Unknown" />

@@ -26,6 +26,8 @@ const appEnv: Record<string, string> = {
   HOME: process.env.HOME ?? "/root",
   NEXT_TELEMETRY_DISABLED: "1",
   STORAGE_DRIVER: "local", // the e2e stack has no Storage API: photos/card scans go to disk, served by /api/media/file
+  // Address suggestions: deterministic Memphis/Austin fixtures (src/lib/geo/suggest/fake.ts) — never Google or Photon.
+  DILLY_ADDRESS_PROVIDER: "fake",
   // E2E-only Web Push keys (never used outside the local suite): Settings → Notifications renders its real states.
   VAPID_PUBLIC_KEY: "BBw7Uu3mITizQtb2DXMheM4JFHUkVLCq1FXzQmO7aG7xFJHLwkK9-nIukQKwPLoMoYWh2tg1G0YOozouOGWvRr8",
   VAPID_PRIVATE_KEY: "3q1A2vIfoor5UtMxSc5c2y1zQKBL0XLFqpNHAorPhrg",

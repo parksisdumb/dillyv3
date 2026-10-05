@@ -71,7 +71,17 @@ const propertySchema = z.object({
   warranty_expires_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   building_count: z.coerce.number().int().min(0).max(10000).optional(),
   notes: optStr(4000),
+  // Set by the address autocomplete when the rep picked a suggestion (else the Census geocoder fills them later).
+  lat: z.coerce.number().min(-90).max(90).optional(),
+  lng: z.coerce.number().min(-180).max(180).optional(),
+  geocode_source: z.enum(["google", "photon"]).optional(),
 });
+
+/** A picked suggestion's pin — all three or nothing. */
+function pickedPin(v: { lat?: number; lng?: number; geocode_source?: "google" | "photon" }) {
+  if (v.lat == null || v.lng == null || !v.geocode_source || !Number.isFinite(v.lat) || !Number.isFinite(v.lng)) return {};
+  return { lat: Math.round(v.lat * 1e6) / 1e6, lng: Math.round(v.lng * 1e6) / 1e6, geocoded_at: new Date().toISOString(), geocode_source: v.geocode_source };
+}
 
 export async function saveProperty(_: ActionState, fd: FormData): Promise<ActionState> {
   const parsed = propertySchema.safeParse(formObject(fd));
@@ -93,6 +103,7 @@ export async function saveProperty(_: ActionState, fd: FormData): Promise<Action
     warranty_expires_on: v.warranty_expires_on ?? null,
     building_count: v.building_count ?? null,
     notes: v.notes ?? null,
+    ...(v.address1 ? pickedPin(v) : {}),
   };
   if (id) {
     // Who owns / manages the building changes only through the Ownership section (transfer_property keeps history).

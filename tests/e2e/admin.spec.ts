@@ -87,7 +87,9 @@ test.describe("Parks (TSG owner): logins, roles, access", () => {
     const { data: audit } = await db.from("admin_audit").select("action").eq("target_email", email);
     expect((audit ?? []).map((a) => a.action).sort()).toEqual(["member.deactivated", "member.login_created", "member.role_changed"]);
     // Parks can't change his own role or demote himself out of the last owner seat.
-    await page.keyboard.press("Escape");
+    // Close the sheet with its button (an Escape right after the confirm() can be swallowed by Chromium's close watcher).
+    await page.locator("dialog[open]").getByRole("button", { name: "Close" }).click();
+    await expect(page.locator("dialog[open]")).toHaveCount(0);
     await memberRow(page, "team@dillyos.com").getByRole("button", { name: /^Manage/ }).click();
     await expect(page.locator("dialog[open]").getByText(/This is you/)).toBeVisible();
   });
